@@ -16,6 +16,18 @@ from utils.data_loader import (
     load_holidays_hf,
 )
 
+from pathlib import Path
+from collections.abc import Mapping, Sequence
+
+def _to_pure_python(obj):
+    # Convertit récursivement Path -> str
+    if isinstance(obj, Path):
+        return str(obj)
+    if isinstance(obj, Mapping):
+        return {k: _to_pure_python(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return obj.__class__(_to_pure_python(x) for x in obj)
+    return obj
 
 class FavoritaFeaturePipeline:
     """
@@ -61,10 +73,10 @@ class FavoritaFeaturePipeline:
     # ✅ Bonus: sécurise la sérialisation si jamais un Path traîne ailleurs
     def __getstate__(self):
         state = self.__dict__.copy()
-        # force en str (au cas où)
-        if "data_dir" in state:
-            state["data_dir"] = str(state["data_dir"])
-        return state
+        return _to_pure_python(state)
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
 
     # ---------------------------
     # Utils
