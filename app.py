@@ -25,52 +25,85 @@ PARQUET_NAME = "train_last10w.parquet"
 MAX_WEEKS = 10
 
 # ============================================================
-# CSS
+# CSS PREMIUM
 # ============================================================
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
-* { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
-.block-container { padding: 2rem 3rem 3rem 3rem; max-width: 1600px; }
 
-/* HERO */
+* {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.block-container {
+    padding: 2rem 3rem 3rem 3rem;
+    max-width: 1600px;
+}
+
+/* ===== HERO SECTION ===== */
 .dashboard-hero {
-    background: linear-gradient(135deg, #1e3c72 0%, #2a5298 50%, #7e22ce 100%);
-    border-radius: 30px;
-    padding: 4rem 3rem;
-    margin-bottom: 2.5rem;
-    box-shadow: 0 30px 80px rgba(30, 60, 114, 0.4);
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%);
+    border-radius: 24px;
+    padding: 3.5rem 2.5rem;
+    margin-bottom: 2rem;
+    box-shadow: 0 25px 70px rgba(15, 23, 42, 0.4);
     position: relative;
     overflow: hidden;
 }
-.dashboard-hero::before{
-    content:'';
-    position:absolute;
-    top:-150px; right:-150px;
-    width:600px; height:600px;
-    background: radial-gradient(circle, rgba(255,255,255,0.25) 0%, transparent 60%);
-    border-radius:50%;
+
+.dashboard-hero::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -20%;
+    width: 700px;
+    height: 700px;
+    background: radial-gradient(circle, rgba(59, 130, 246, 0.2) 0%, transparent 60%);
+    border-radius: 50%;
     animation: float 8s ease-in-out infinite;
 }
-.dashboard-hero::after{
-    content:'';
-    position:absolute;
-    bottom:-100px; left:-100px;
-    width:450px; height:450px;
-    background: radial-gradient(circle, rgba(255,255,255,0.15) 0%, transparent 70%);
-    border-radius:50%;
+
+.dashboard-hero::after {
+    content: '';
+    position: absolute;
+    bottom: -40%;
+    left: -15%;
+    width: 500px;
+    height: 500px;
+    background: radial-gradient(circle, rgba(139, 92, 246, 0.15) 0%, transparent 70%);
+    border-radius: 50%;
     animation: float 10s ease-in-out infinite reverse;
 }
-@keyframes float { 0%,100%{transform:translate(0,0)} 50%{transform:translate(30px,-30px)} }
+
+@keyframes float {
+    0%, 100% { transform: translate(0, 0); }
+    50% { transform: translate(30px, -30px); }
+}
+
+.hero-content {
+    position: relative;
+    z-index: 1;
+}
 
 .hero-title {
-    color:white; font-size:3.5rem; font-weight:900;
-    margin:0 0 1rem 0; letter-spacing:-0.04em;
-    text-shadow:0 6px 20px rgba(0,0,0,0.2); line-height:1.1;
+    color: white;
+    font-size: 3rem;
+    font-weight: 900;
+    margin: 0 0 0.8rem 0;
+    letter-spacing: -0.04em;
+    text-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+    line-height: 1.1;
 }
-.hero-subtitle { color: rgba(255,255,255,0.95); font-size:1.3rem; margin:0; font-weight:400; line-height:1.6; }
 
-/* KPI */
+.hero-subtitle {
+    color: rgba(255, 255, 255, 0.95);
+    font-size: 1.2rem;
+    margin: 0;
+    font-weight: 400;
+    line-height: 1.6;
+}
+
+/* ===== KPI CARDS ===== */
 .kpi-container {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
@@ -78,67 +111,221 @@ st.markdown("""
     max-width: 700px;
     margin: 0 auto 2rem auto;
 }
+
 .kpi-card {
     background: white;
-    border-radius: 22px;
+    border-radius: 18px;
     padding: 2rem 1.5rem;
-    box-shadow: 0 8px 30px rgba(0,0,0,0.08);
-    border-top: 5px solid;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+    border-left: 5px solid;
     transition: all 0.25s ease;
+    position: relative;
+    overflow: hidden;
 }
-.kpi-card:nth-child(1) { border-top-color: #1e3c72; }
-.kpi-card:nth-child(2) { border-top-color: #2a5298; }
-.kpi-card:hover { transform: translateY(-6px); box-shadow: 0 16px 45px rgba(0,0,0,0.14); }
-.kpi-icon { font-size: 2.2rem; margin-bottom: 1rem; display: block; }
-.kpi-label { font-size: 0.8rem; color: #6b7280; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.6rem; }
-.kpi-value { font-size: 2.4rem; font-weight: 900; color: #111827; line-height: 1; }
 
-/* SECTIONS */
+.kpi-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 100px;
+    height: 100px;
+    background: radial-gradient(circle, rgba(0, 0, 0, 0.03) 0%, transparent 70%);
+    border-radius: 50%;
+}
+
+.kpi-card:nth-child(1) { border-left-color: #3b82f6; }
+.kpi-card:nth-child(2) { border-left-color: #8b5cf6; }
+
+.kpi-card:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 16px 45px rgba(0, 0, 0, 0.14);
+}
+
+.kpi-label {
+    font-size: 0.75rem;
+    color: #64748b;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 0.6rem;
+}
+
+.kpi-value {
+    font-size: 2.2rem;
+    font-weight: 900;
+    color: #0f172a;
+    line-height: 1;
+    position: relative;
+    z-index: 1;
+}
+
+/* ===== CHART SECTIONS ===== */
 .chart-section {
     background: white;
-    border-radius: 24px;
+    border-radius: 20px;
     padding: 2.5rem;
-    box-shadow: 0 8px 35px rgba(0,0,0,0.08);
-    border: 1px solid rgba(0,0,0,0.04);
+    box-shadow: 0 8px 35px rgba(0, 0, 0, 0.08);
+    border: 1px solid rgba(0, 0, 0, 0.04);
     margin-bottom: 2rem;
     position: relative;
     overflow: hidden;
 }
+
 .chart-section::before {
     content: '';
     position: absolute;
-    top:0; left:0; right:0; height:5px;
-    background: linear-gradient(90deg, #1e3c72 0%, #2a5298 50%, #7e22ce 100%);
-}
-.chart-header {
-    display:flex; justify-content:space-between; align-items:center;
-    margin-bottom:2rem; padding-bottom:1.5rem;
-    border-bottom:3px solid #f3f4f6;
-}
-.chart-title {
-    font-size:1.6rem; font-weight:900; color:#111827;
-    display:flex; align-items:center; gap:0.8rem;
-}
-.chart-icon {
-    font-size: 1.8rem;
-    background: linear-gradient(135deg, #1e3c72 0%, #7e22ce 100%);
-    -webkit-background-clip:text;
-    -webkit-text-fill-color:transparent;
-    background-clip:text;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #3b82f6 0%, #8b5cf6 50%, #ec4899 100%);
 }
 
-/* SIDEBAR */
-section[data-testid="stSidebar"] {
-    background: linear-gradient(180deg, #f8fafc 0%, #fff 100%);
-    border-right: 2px solid rgba(0,0,0,0.06);
+.chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 2px solid #f1f5f9;
 }
-section[data-testid="stSidebar"] .block-container { padding-top: 2rem; }
+
+.chart-title {
+    font-size: 1.4rem;
+    font-weight: 900;
+    color: #0f172a;
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+}
+
+.chart-icon {
+    width: 10px;
+    height: 10px;
+    background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+    border-radius: 50%;
+    display: inline-block;
+}
+
+/* ===== SIDEBAR ===== */
+section[data-testid="stSidebar"] {
+    background: linear-gradient(180deg, #fafaf9 0%, #ffffff 100%);
+    border-right: 2px solid rgba(0, 0, 0, 0.06);
+}
+
+section[data-testid="stSidebar"] .block-container {
+    padding-top: 2rem;
+}
+
 section[data-testid="stSidebar"] h2 {
-    background: linear-gradient(135deg, #1e3c72 0%, #7e22ce 100%);
-    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip:text;
-    font-size: 1.7rem; font-weight: 900;
-    margin-bottom: 2rem; padding-bottom: 1rem;
-    border-bottom: 3px solid #f3f4f6;
+    background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    font-size: 1.5rem;
+    font-weight: 900;
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid #f1f5f9;
+}
+
+/* ===== EXPANDER ===== */
+.streamlit-expanderHeader {
+    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+    border-radius: 8px;
+    font-weight: 600;
+    color: #1e293b;
+    border: 1px solid #e2e8f0;
+}
+
+/* ===== INFO BOXES ===== */
+.stInfo {
+    background: linear-gradient(135deg, #dbeafe 0%, #e0e7ff 100%);
+    border-left: 4px solid #3b82f6;
+    border-radius: 8px;
+}
+
+/* ===== DATA TABLE ===== */
+.dataframe {
+    border: none !important;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.dataframe thead tr {
+    background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+}
+
+.dataframe thead th {
+    color: #1e293b;
+    font-weight: 700;
+    padding: 0.8rem;
+    font-size: 0.85rem;
+}
+
+.dataframe tbody tr:hover {
+    background: #f8fafc;
+}
+
+/* ===== FOOTER ===== */
+.dashboard-footer {
+    text-align: center;
+    color: #64748b;
+    padding: 2rem 0;
+    margin-top: 3rem;
+    border-top: 2px solid #f1f5f9;
+}
+
+.footer-title {
+    font-size: 0.95rem;
+    margin: 0;
+    font-weight: 700;
+    color: #1e293b;
+}
+
+.footer-text {
+    font-size: 0.8rem;
+    margin: 0.5rem 0 0 0;
+    opacity: 0.8;
+}
+
+/* ===== BUTTONS ===== */
+.stButton > button {
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    padding: 0.75rem 1.5rem;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+}
+
+.stButton > button:hover {
+    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+    box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
+    transform: translateY(-2px);
+}
+
+/* ===== TABS ===== */
+.stTabs [data-baseweb="tab-list"] {
+    gap: 0.5rem;
+}
+
+.stTabs [data-baseweb="tab"] {
+    background: white;
+    border-radius: 8px 8px 0 0;
+    font-weight: 600;
+    padding: 0.8rem 1.5rem;
+    border: 1px solid #e2e8f0;
+    border-bottom: none;
+}
+
+.stTabs [aria-selected="true"] {
+    background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+    color: white !important;
+    border: none;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -148,10 +335,12 @@ section[data-testid="stSidebar"] h2 {
 # ============================================================
 st.markdown("""
 <div class="dashboard-hero">
-  <div class="hero-title">📦 Favorita Forecast</div>
-  <div class="hero-subtitle">
-    Tableau de bord analytique avancé pour la prédiction des ventes<br>
-    avec visualisations interactives
+  <div class="hero-content">
+    <div class="hero-title">Favorita Forecast</div>
+    <div class="hero-subtitle">
+      Tableau de bord analytique avancé pour la prédiction des ventes<br>
+      avec visualisations interactives
+    </div>
   </div>
 </div>
 """, unsafe_allow_html=True)
@@ -160,11 +349,11 @@ st.markdown("""
 # SIDEBAR CONFIG
 # ============================================================
 with st.sidebar:
-    st.markdown("## ⚙️ Configuration")
-    weeks_window = st.selectbox("⏱️ Fenêtre (semaines)", [10, 8, 4, 3, 2, 1], index=0, key="weeks_window")
-    st.caption(f"💡 Fenêtre max = {MAX_WEEKS} (parquet HF = {PARQUET_NAME})")
+    st.markdown("## Configuration")
+    weeks_window = st.selectbox("Fenêtre (semaines)", [10, 8, 4, 3, 2, 1], index=0, key="weeks_window")
+    st.caption(f"Fenêtre max = {MAX_WEEKS} semaines")
     st.divider()
-    st.markdown("## 🎛️ Filtres")
+    st.markdown("## Filtres")
     st.caption("Le graphe journalier s'affiche seulement si tu choisis ≥1 store et ≥1 item.")
 
 # ============================================================
@@ -172,7 +361,7 @@ with st.sidebar:
 # ============================================================
 @st.cache_data(show_spinner=True)
 def load_all(weeks_window: int):
-    train = load_train_from_hf(weeks=int(weeks_window),filename=PARQUET_NAME,columns=["date", "store_nbr", "item_nbr", "onpromotion", "unit_sales"])
+    train = load_train_from_hf(weeks=int(weeks_window), filename=PARQUET_NAME, columns=["date", "store_nbr", "item_nbr", "onpromotion", "unit_sales"])
     items = load_items_hf("items.csv")
     stores = load_stores_hf("stores.csv")
     return train, items, stores
@@ -190,21 +379,21 @@ item_list = np.sort(train["item_nbr"].unique()).tolist()
 # ============================================================
 with st.sidebar:
     date_range = st.date_input(
-        "📅 Période",
+        "Période",
         value=(min_d.date(), max_d.date()),
         min_value=min_d.date(),
         max_value=max_d.date()
     )
 
-    store_sel = st.multiselect("🏪 Stores", store_list, default=[])
+    store_sel = st.multiselect("Stores", store_list, default=[])
 
-    q_item = st.text_input("🔎 Rechercher un item (id)", value="")
+    q_item = st.text_input("Rechercher un item (id)", value="")
     if q_item.strip():
         item_opts = [x for x in item_list if q_item.strip() in str(x)][:5000]
     else:
         item_opts = item_list[:5000]
 
-    item_sel = st.multiselect("📦 Items", options=item_opts, default=[])
+    item_sel = st.multiselect("Items", options=item_opts, default=[])
 
 # ============================================================
 # APPLY FILTERS
@@ -242,12 +431,10 @@ n_items  = int(df["item_nbr"].nunique())
 st.markdown(f"""
 <div class="kpi-container">
   <div class="kpi-card">
-    <span class="kpi-icon">🏪</span>
     <div class="kpi-label">Stores actifs</div>
     <div class="kpi-value">{n_stores:,}</div>
   </div>
   <div class="kpi-card">
-    <span class="kpi-icon">📦</span>
     <div class="kpi-label">Items actifs</div>
     <div class="kpi-value">{n_items:,}</div>
   </div>
@@ -264,7 +451,7 @@ with left:
     st.markdown('''
     <div class="chart-header">
       <div class="chart-title">
-        <span class="chart-icon">📈</span>
+        <span class="chart-icon"></span>
         Ventes journalières (somme unit_sales)
       </div>
     </div>
@@ -281,7 +468,7 @@ with left:
             item_col="item_nbr"
         )
 
-        st.plotly_chart(fig1, width='stretch')
+        st.plotly_chart(fig1, use_container_width=True)
 
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -290,7 +477,7 @@ with right:
     st.markdown('''
     <div class="chart-header">
       <div class="chart-title">
-        <span class="chart-icon">🧺</span>
+        <span class="chart-icon"></span>
         Top familles (somme unit_sales)
       </div>
     </div>
@@ -298,24 +485,20 @@ with right:
 
     df_fam = df_base[["item_nbr", "unit_sales_pos"]].merge(items_min, on="item_nbr", how="left", copy=False)
     fig2 = bar_top_families_sum(df_fam, y_col="unit_sales_pos", top=10)
-    st.plotly_chart(fig2, width='stretch')
+    st.plotly_chart(fig2, use_container_width=True)
 
     st.markdown('</div>', unsafe_allow_html=True)
 
-    with st.expander("🔍 Aperçu des données filtrées"):
-        st.dataframe(df.head(50), width='stretch')
+    with st.expander("Aperçu des données filtrées"):
+        st.dataframe(df.head(50), use_container_width=True)
 
 # ============================================================
 # FOOTER
 # ============================================================
 st.divider()
 st.markdown("""
-<div style="text-align: center; color: #6b7280; padding: 2rem 0;">
-  <p style="font-size: 0.9rem; margin: 0;">
-    <strong>Favorita Forecast Dashboard</strong> · Propulsé par Streamlit
-  </p>
-  <p style="font-size: 0.8rem; margin: 0.5rem 0 0 0; opacity: 0.8;">
-    © 2026 · Tous droits réservés · Made with ❤️
-  </p>
+<div class="dashboard-footer">
+  <p class="footer-title">Favorita Forecast Dashboard</p>
+  <p class="footer-text">© 2026 · Propulsé par Streamlit · Made with ❤️</p>
 </div>
 """, unsafe_allow_html=True)
