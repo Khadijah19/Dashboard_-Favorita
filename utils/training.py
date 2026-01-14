@@ -209,14 +209,30 @@ def train_reference_model(
     df = df.dropna(subset=["date"])
     df = FavoritaFeaturePipeline.add_target(df, y_col="unit_sales")
 
-    # 1) Split temporel
+        # 1) Split temporel
+    # ------------------------------------------------------
+    # ✅ Fix: si weeks_window < total_days, on adapte automatiquement le split
+    # pour éviter train_fit/test_df vides.
+    # (Sans toucher au reste du pipeline)
+    n_days_available = int((df["date"].max() - df["date"].min()).days) + 1
+
+    total_days_eff = int(min(total_days, n_days_available))
+    test_days_eff  = int(min(test_days, max(7, total_days_eff // 6)))   # ~15% du total, min 7j
+    gap_days_eff   = int(min(gap_days, max(0, (total_days_eff - test_days_eff) // 10)))  # petit gap
+
+    # sécurité: s'assurer qu'il reste au moins 1 jour pour train
+    if total_days_eff <= test_days_eff:
+        test_days_eff = max(1, total_days_eff - 1)
+        gap_days_eff = 0
+
     train_fit, gap_df, test_df, split_info = split_84_gap_test(
         df,
-        total_days=int(total_days),
-        test_days=int(test_days),
-        gap_days=int(gap_days),
+        total_days=total_days_eff,
+        test_days=test_days_eff,
+        gap_days=gap_days_eff,
         date_col="date",
     )
+
 
     if len(train_fit) == 0 or len(test_df) == 0:
         raise ValueError(
