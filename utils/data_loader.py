@@ -13,6 +13,7 @@ def hf_url(filename: str) -> str:
 # ----------------------------
 from huggingface_hub import hf_hub_download
 
+
 HF_DATASET_REPO = "khadidia-77/favorita"
 HF_REPO_TYPE = "dataset"
 
@@ -113,6 +114,24 @@ def load_transactions(data_dir=None) -> pd.DataFrame:
 def load_holidays(data_dir=None) -> pd.DataFrame:
     return load_holidays_hf()
 
+import time
+from huggingface_hub import hf_hub_download
+
+def _hf_download_with_retry(repo_id, repo_type, filename, cache_dir, token, tries=4):
+    last = None
+    for k in range(tries):
+        try:
+            return hf_hub_download(
+                repo_id=repo_id,
+                repo_type=repo_type,
+                filename=filename,
+                cache_dir=cache_dir,
+                token=token,
+            )
+        except Exception as e:
+            last = e
+            time.sleep(1.5 * (2 ** k))  # backoff
+    raise last
 
 
 # -------------------------------------------
@@ -132,3 +151,4 @@ def load_metadata(models_dir: str | Path = "models") -> dict:
 def load_metrics(models_dir: str | Path = "models") -> dict:
     """Alias: certains scripts appellent load_metrics."""
     return load_metadata(models_dir=models_dir)
+
