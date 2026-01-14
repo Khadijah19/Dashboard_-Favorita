@@ -23,7 +23,7 @@ def load_train_from_hf(
     filename: str = "train_last10w.parquet",
     cache_dir: str = ".cache/favorita_data",
     columns: list[str] | None = None,   # ✅ NEW
-) -> pd.DataFrame:
+    ) -> pd.DataFrame:
     local = hf_hub_download(
         repo_id=repo_id,
         repo_type=HF_REPO_TYPE,
