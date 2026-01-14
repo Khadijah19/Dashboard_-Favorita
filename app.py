@@ -1,7 +1,6 @@
 # app.py
 # -*- coding: utf-8 -*-
 
-
 import sys
 from pathlib import Path
 
@@ -16,7 +15,6 @@ from utils.viz import bar_top_families_sum
 from utils.data_loader import load_train_from_hf, load_items_hf, load_stores_hf
 
 
-
 # ============================================================
 # CONFIG
 # ============================================================
@@ -28,6 +26,7 @@ st.set_page_config(
 
 PARQUET_NAME = "train_last10w.parquet"
 WEEKS_WINDOW = 10  # fenêtre fixée (stabilité)
+
 
 # ============================================================
 # CSS PREMIUM (hero centré + animations)
@@ -227,7 +226,7 @@ st.markdown(
 )
 
 # ============================================================
-# SIDEBAR
+# SIDEBAR (top)
 # ============================================================
 with st.sidebar:
     st.markdown("## Configuration")
@@ -235,24 +234,46 @@ with st.sidebar:
     st.divider()
     st.markdown("## Filtres")
     st.caption("La courbe s'affiche uniquement si au moins un store et un item sont sélectionnés.")
+    st.divider()
+
+    # Bouton pour forcer un reload (utile si HF tombe)
+    if st.button("🔄 Recharger les données"):
+        st.cache_data.clear()
+        st.rerun()
 
 # ============================================================
-# LOAD DATA (HF ONLY)
+# LOAD DATA (HF ONLY) + robust error handling
 # ============================================================
-@st.cache_data(show_spinner=True)
+@st.cache_data(show_spinner=True, ttl=3600)  # 1h -> évite cache “cassé” trop longtemps
 def load_all_fixed():
     train = load_train_from_hf(
         weeks=int(WEEKS_WINDOW),
         filename=PARQUET_NAME,
         columns=["date", "store_nbr", "item_nbr", "onpromotion", "unit_sales"],
     )
-    items = load_items_hf("items.csv")
-    stores = load_stores_hf("stores.csv")
+    # ✅ IMPORTANT: ne PAS passer "items.csv" comme premier argument si ton loader l’interprète comme repo_id
+    # On appelle sans argument (default filename="items.csv") -> stable
+    items = load_items_hf()
+    stores = load_stores_hf()
     return train, items, stores
 
 
-train, items, stores = load_all_fixed()
+try:
+    train, items, stores = load_all_fixed()
+except Exception:
+    st.error(
+        "Impossible de charger les données depuis Hugging Face pour le moment.\n\n"
+        "✅ Solutions :\n"
+        "- Cliquez sur **Recharger les données** (sidebar)\n"
+        "- Attendez 1–2 minutes (HF peut avoir un petit downtime)\n"
+        "- Si le repo est privé : ajoutez un **HF_TOKEN** dans Streamlit Secrets"
+    )
+    st.stop()
 
+
+# ============================================================
+# CLEAN TRAIN
+# ============================================================
 train["date"] = pd.to_datetime(train["date"], errors="coerce").dt.normalize()
 train = train.dropna(subset=["date"])
 
@@ -262,10 +283,9 @@ store_list = np.sort(train["store_nbr"].dropna().unique()).tolist()
 item_list = np.sort(train["item_nbr"].dropna().unique()).tolist()
 
 # ============================================================
-# SIDEBAR FILTERS (avec contrôle "période" obligatoire)
+# SIDEBAR FILTERS (période obligatoire)
 # ============================================================
 with st.sidebar:
-    # IMPORTANT: Streamlit peut renvoyer un seul jour si l'utilisateur clique "date unique"
     date_range = st.date_input(
         "Période",
         value=(min_d.date(), max_d.date()),
@@ -275,7 +295,7 @@ with st.sidebar:
         key="date_range",
     )
 
-    # ✅ Validation : si ce n'est pas une paire (start, end), on affiche un message clair
+    # Validation : Streamlit peut renvoyer une seule date (au lieu d’un tuple)
     if not (isinstance(date_range, (tuple, list)) and len(date_range) == 2):
         st.info("Veuillez sélectionner une période (date de début et date de fin).")
         st.stop()
@@ -405,12 +425,12 @@ with right:
 
     df_fam = df_base[["item_nbr", "unit_sales_pos"]].merge(items_min, on="item_nbr", how="left", copy=False)
     fig2 = bar_top_families_sum(df_fam, y_col="unit_sales_pos", top=10)
-    st.plotly_chart(fig2, use_container_width=True)
+    st.plotly_chart(fig2, width="stretch")  # ✅ remplace use_container_width=True
 
     st.markdown("</div>", unsafe_allow_html=True)
 
     with st.expander("Aperçu des données filtrées"):
-        st.dataframe(df.head(50), use_container_width=True)
+        st.dataframe(df.head(50), width="stretch")
 
 # ============================================================
 # FOOTER
