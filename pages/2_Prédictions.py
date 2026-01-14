@@ -520,7 +520,7 @@ with tab1:
     st.markdown("</div>", unsafe_allow_html=True)
 
 # ============================================================
-# TAB 2 — Period predictions + chart by couple store-item
+# TAB 2 — Period predictions + chart for ALL selected series
 # ============================================================
 with tab2:
     st.markdown('<div class="chart-section">', unsafe_allow_html=True)
@@ -536,7 +536,7 @@ with tab2:
         unsafe_allow_html=True,
     )
 
-    st.write("Sélectionnez une période, filtrez si besoin, puis lancez la prédiction. Le graphique affiche les séries les plus importantes sur la période (Top N).")
+    st.write("La prédiction est calculée ligne par ligne. Le graphique affiche toutes les séries correspondant à votre sélection.")
 
     if run_period:
         # ---------- Dates ----------
@@ -571,16 +571,12 @@ with tab2:
 
         # ---------- Prédiction ----------
         with st.spinner("Calcul des prédictions..."):
-            # IMPORTANT : si ton pipeline a besoin exactement des 4 colonnes,
-            # assure-toi que f contient bien "date, store_nbr, item_nbr, onpromotion"
             Xf_enriched = pipe.transform(f)
-
             Xf = (
                 Xf_enriched.reindex(columns=feature_cols, fill_value=0)
                 .replace([np.inf, -np.inf], np.nan)
                 .fillna(0)
             )
-
             pred_log_arr = model.predict(Xf)
             pred = np.expm1(pred_log_arr)
 
@@ -588,7 +584,7 @@ with tab2:
         out["pred_unit_sales"] = pd.to_numeric(pred, errors="coerce").astype("float32")
         out = out.dropna(subset=["pred_unit_sales"])
 
-        # ---------- Choix d'agrégation ----------
+        # ---------- Mode d'affichage ----------
         if group_mode == "Par couple (store, item)":
             out["series"] = (
                 out["store_nbr"].astype(int).astype(str)
@@ -607,22 +603,15 @@ with tab2:
             .sort_values(["date", "series"])
         )
 
-        # ---------- Top N séries ----------
-        # (les plus importantes sur la période, par somme totale)
-        rank = (
-            g.groupby("series", as_index=False)["pred_unit_sales"]
-            .sum()
-            .sort_values("pred_unit_sales", ascending=False)
-        )
-        top_series = rank["series"].head(int(top_n)).tolist()
-        g = g.loc[g["series"].isin(top_series)]
+        # ---------- Avertissement si trop de séries ----------
+        n_series = int(g["series"].nunique())
+        if n_series > 60:
+            st.warning(
+                f"Vous avez {n_series} séries à afficher. Le graphique peut devenir chargé ou lent. "
+                "Réduisez la sélection (stores/items) si besoin."
+            )
 
-        if len(g) == 0:
-            st.warning("Aucune série à afficher (Top N vide). Essayez d'augmenter Top N ou de réduire les filtres.")
-            st.markdown("</div>", unsafe_allow_html=True)
-            st.stop()
-
-        # ---------- Plot pro (Plotly) ----------
+        # ---------- Graphe Plotly (toutes les séries) ----------
         import plotly.express as px
 
         fig = px.line(
@@ -630,7 +619,6 @@ with tab2:
             x="date",
             y="pred_unit_sales",
             color="series",
-            markers=False,
             labels={
                 "date": "Date",
                 "pred_unit_sales": "Ventes prédites (unités)",
@@ -642,7 +630,6 @@ with tab2:
             margin=dict(l=10, r=10, t=10, b=10),
             legend_title_text="",
         )
-
         st.plotly_chart(fig, width="stretch")
 
         # ---------- Table ----------
