@@ -510,8 +510,7 @@ with left:
             y_col="unit_sales_pos",
             item_col="item_nbr",
         )
-        st.plotly_chart(fig1, use_container_width=True)
-
+        st.plotly_chart(fig, width="stretch")
     st.markdown("</div>", unsafe_allow_html=True)
 
 with right:
