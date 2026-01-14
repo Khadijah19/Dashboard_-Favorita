@@ -169,7 +169,7 @@ except Exception as e:
 # ============================================================
 @st.cache_data(show_spinner=True)
 def load_recent_data(weeks: int):
-    df_ = load_train_from_hf(weeks=int(weeks), filename=PARQUET_NAME)
+    df_ = load_train_from_hf(weeks=WEEKS,filename=PARQUET_NAME,columns=["date", "store_nbr", "item_nbr"])  # ✅ léger)
     df_["date"] = pd.to_datetime(df_["date"], errors="coerce").dt.normalize()
     df_ = df_.dropna(subset=["date"])
     return df_
@@ -219,6 +219,7 @@ with st.sidebar:
 
     with st.expander("⚡ Prédiction Instantanée", expanded=True):
         from datetime import timedelta
+
         future_max = max_d + timedelta(days=60)  # ou 365
         date_in = st.date_input("📅 Date", value=max_d, min_value=min_d, max_value=future_max)
         store_nbr = st.selectbox("🏪 Store", options=store_list, index=0)
