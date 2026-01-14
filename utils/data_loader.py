@@ -22,6 +22,41 @@ def load_train_from_hf(
     weeks: int = 10,
     filename: str = "train_last10w.parquet",
     cache_dir: str = ".cache/favorita_data",
+    columns: list[str] | None = None,   # ✅ NEW
+) -> pd.DataFrame:
+    local = hf_hub_download(
+        repo_id=repo_id,
+        repo_type=HF_REPO_TYPE,
+        filename=filename,
+        cache_dir=cache_dir,
+        token=hf_token,
+    )
+
+    # ✅ NEW: lire seulement les colonnes nécessaires
+    df = pd.read_parquet(local, columns=columns)
+
+    df["date"] = pd.to_datetime(df["date"], errors="coerce").dt.normalize()
+    df = df.dropna(subset=["date"])
+
+    # casts (uniquement si colonnes présentes)
+    if "store_nbr" in df.columns:
+        df["store_nbr"] = df["store_nbr"].astype("int16")
+    if "item_nbr" in df.columns:
+        df["item_nbr"] = df["item_nbr"].astype("int32")
+    if "unit_sales" in df.columns:
+        df["unit_sales"] = pd.to_numeric(df["unit_sales"], errors="coerce").fillna(0).astype("float32")
+    if "onpromotion" in df.columns:
+        df["onpromotion"] = df["onpromotion"].fillna(False).astype(bool)
+
+    max_date = df["date"].max()
+    start_date = max_date - pd.Timedelta(weeks=int(weeks))
+    return df.loc[df["date"] >= start_date].copy()
+
+    repo_id: str = HF_DATASET_REPO,
+    hf_token: str | None = None,
+    weeks: int = 10,
+    filename: str = "train_last10w.parquet",
+    cache_dir: str = ".cache/favorita_data",
 ) -> pd.DataFrame:
     local = hf_hub_download(
         repo_id=repo_id,
