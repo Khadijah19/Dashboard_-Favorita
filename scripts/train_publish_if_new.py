@@ -4,6 +4,12 @@
 import os
 import json
 from pathlib import Path
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
 
 from huggingface_hub import hf_hub_download, hf_hub_url
 from huggingface_hub.file_download import get_hf_file_metadata
@@ -174,3 +180,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
