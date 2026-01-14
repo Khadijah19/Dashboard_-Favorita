@@ -172,7 +172,7 @@ with st.sidebar:
 # ============================================================
 @st.cache_data(show_spinner=True)
 def load_all(weeks_window: int):
-    train = load_train_from_hf(weeks=int(weeks_window),filename=PARQUET_NAME,columns=["date", "store_nbr", "item_nbr", "onpromotion"])
+    train = load_train_from_hf(weeks=int(weeks_window),filename=PARQUET_NAME,columns=["date", "store_nbr", "item_nbr", "onpromotion", "unit_sales"])
     items = load_items_hf("items.csv")
     stores = load_stores_hf("stores.csv")
     return train, items, stores
