@@ -210,8 +210,7 @@ st.markdown(
     <div class="hero-kicker">Sales forecasting • Analytics</div>
     <div class="hero-title">Bienvenue sur Favorita Forecast</div>
     <div class="hero-subtitle">
-      Explorez les ventes récentes, comparez les couples store–item et identifiez les familles les plus contributrices,
-      avec une navigation claire et des visualisations à haute lisibilité.
+      Vous pouvez explorez les ventes récentes et surtout faire des prédictions sur vos ventes futures.
     </div>
     <div class="hero-actions">
       <div class="hero-chip"><span class="dot"></span> Données récentes (10 semaines)</div>
