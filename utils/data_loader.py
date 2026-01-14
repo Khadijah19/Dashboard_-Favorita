@@ -22,6 +22,7 @@ def load_train_from_hf(
     weeks: int = 10,
     filename: str = "train_last10w.parquet",
     cache_dir: str = ".cache/favorita_data",
+    columns: list[str] | None = None,
 ) -> pd.DataFrame:
     local = hf_hub_download(
         repo_id=repo_id,
@@ -31,7 +32,7 @@ def load_train_from_hf(
         token=hf_token,
     )
 
-    df = pd.read_parquet(local)
+    df = pd.read_parquet(local, columns=columns)  # 
     df["date"] = pd.to_datetime(df["date"], errors="coerce").dt.normalize()
     df = df.dropna(subset=["date"])
 
