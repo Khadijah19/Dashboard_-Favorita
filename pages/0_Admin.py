@@ -69,7 +69,12 @@ def load_artifacts_latest(hf_token):
 
 @st.cache_data(show_spinner=False)
 def load_data_weeks(weeks: int):
-    df_ = load_train_from_hf(weeks=int(weeks), filename=PARQUET_NAME)
+    df_ = load_train_from_hf(
+    weeks=int(eval_weeks),
+    filename=PARQUET_NAME,
+    columns=["date", "store_nbr", "item_nbr", "onpromotion", "unit_sales"],
+    )
+
     df_["date"] = pd.to_datetime(df_["date"], errors="coerce").dt.normalize()
     df_ = df_.dropna(subset=["date"])
     return df_
