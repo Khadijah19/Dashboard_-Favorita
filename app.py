@@ -23,11 +23,13 @@ st.set_page_config(
 
 PARQUET_NAME = "train_last10w.parquet"
 MAX_WEEKS = 10
+WEEKS_WINDOW = 10  # Fenêtre fixée à 10 semaines pour limiter la RAM et éviter les crashes
 
 # ============================================================
 # CSS PREMIUM (hero centré + animations)
 # ============================================================
-st.markdown("""
+st.markdown(
+    """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
 
@@ -360,12 +362,15 @@ section[data-testid="stSidebar"] h2 {
     border: none;
 }
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 # ============================================================
 # HEADER (centered + pro text)
 # ============================================================
-st.markdown("""
+st.markdown(
+    """
 <div class="dashboard-hero">
   <div class="hero-shine"></div>
   <div class="hero-content">
@@ -376,21 +381,22 @@ st.markdown("""
       avec une navigation claire et des visualisations interactives.
     </div>
     <div class="hero-actions">
-      <div class="hero-chip"><span class="dot"></span> Données récentes (fenêtre paramétrable)</div>
+      <div class="hero-chip"><span class="dot"></span> Données récentes (10 semaines)</div>
       <div class="hero-chip"><span class="dot"></span> Filtres store/item + période</div>
       <div class="hero-chip"><span class="dot"></span> Graphiques haute lisibilité</div>
     </div>
   </div>
 </div>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 # ============================================================
-# SIDEBAR CONFIG
+# SIDEBAR CONFIG (fenêtre fixe)
 # ============================================================
 with st.sidebar:
     st.markdown("## Configuration")
-    weeks_window = st.selectbox("Fenêtre (semaines)", [10, 8, 4, 3, 2, 1], index=0, key="weeks_window")
-    st.caption(f"Fenêtre maximale : {MAX_WEEKS} semaines")
+    st.caption("Fenêtre fixée à 10 semaines pour garantir la stabilité et limiter la consommation mémoire.")
     st.divider()
     st.markdown("## Filtres")
     st.caption("La courbe journalière s'affiche uniquement si au moins un store et un item sont sélectionnés.")
@@ -409,7 +415,7 @@ def load_all(weeks_window: int):
     stores = load_stores_hf("stores.csv")
     return train, items, stores
 
-train, items, stores = load_all(int(weeks_window))
+train, items, stores = load_all(int(WEEKS_WINDOW))
 
 train["date"] = pd.to_datetime(train["date"], errors="coerce").dt.normalize()
 min_d, max_d = train["date"].min(), train["date"].max()
@@ -471,7 +477,8 @@ items_min["family"] = items_min["family"].fillna("UNKNOWN").astype(str)
 n_stores = int(df["store_nbr"].nunique())
 n_items = int(df["item_nbr"].nunique())
 
-st.markdown(f"""
+st.markdown(
+    f"""
 <div class="kpi-container">
   <div class="kpi-card">
     <div class="kpi-label">Stores actifs</div>
@@ -482,7 +489,9 @@ st.markdown(f"""
     <div class="kpi-value">{n_items:,}</div>
   </div>
 </div>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 # ============================================================
 # CHARTS
@@ -491,14 +500,17 @@ left, right = st.columns([2.1, 1])
 
 with left:
     st.markdown('<div class="chart-section">', unsafe_allow_html=True)
-    st.markdown('''
+    st.markdown(
+        """
     <div class="chart-header">
       <div class="chart-title">
         <span class="chart-icon"></span>
         Ventes journalières (somme unit_sales)
       </div>
     </div>
-    ''', unsafe_allow_html=True)
+    """,
+        unsafe_allow_html=True,
+    )
 
     if (not store_sel) or (not item_sel):
         st.info("Sélectionnez au moins un store et un item pour afficher la courbe journalière.")
@@ -511,18 +523,22 @@ with left:
             item_col="item_nbr",
         )
         st.plotly_chart(fig1, use_container_width=True)
+
     st.markdown("</div>", unsafe_allow_html=True)
 
 with right:
     st.markdown('<div class="chart-section">', unsafe_allow_html=True)
-    st.markdown('''
+    st.markdown(
+        """
     <div class="chart-header">
       <div class="chart-title">
         <span class="chart-icon"></span>
         Top familles (somme unit_sales)
       </div>
     </div>
-    ''', unsafe_allow_html=True)
+    """,
+        unsafe_allow_html=True,
+    )
 
     df_fam = df_base[["item_nbr", "unit_sales_pos"]].merge(items_min, on="item_nbr", how="left", copy=False)
     fig2 = bar_top_families_sum(df_fam, y_col="unit_sales_pos", top=10)
@@ -537,12 +553,15 @@ with right:
 # FOOTER (plus pro)
 # ============================================================
 st.divider()
-st.markdown("""
+st.markdown(
+    """
 <div class="dashboard-footer">
   <p class="footer-title">Favorita Forecast Dashboard</p>
   <p class="footer-text">
     Un tableau de bord pensé pour aller vite : filtrer, comparer, comprendre, puis passer à la prédiction.
-    Utilisez la barre latérale pour ajuster la fenêtre temporelle et affiner vos analyses.
+    Utilisez la barre latérale pour ajuster la période et affiner vos analyses.
   </p>
 </div>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
