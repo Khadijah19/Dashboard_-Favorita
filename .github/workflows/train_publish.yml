@@ -1,0 +1,54 @@
+name: Train + Publish (HF)
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Tous les 3 jours à 03:00 UTC (tu peux changer)
+    - cron: "0 3 */3 * *"
+
+concurrency:
+  group: train-publish
+  cancel-in-progress: false
+
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Train and publish to Hugging Face
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_REPO_ID: ${{ secrets.HF_REPO_ID }}     # optionnel (sinon valeur par défaut dans le script)
+          PARQUET_NAME: ${{ secrets.PARQUET_NAME }} # optionnel
+          WEEKS_WINDOW: "10"
+          TOTAL_DAYS: "70"   # IMPORTANT: 10 semaines = 70 jours (sinon 84 jours crash)
+          TEST_DAYS: "14"
+          GAP_DAYS: "3"
+          FEATURE_GAP_DAYS: "3"
+          SALES_HISTORY_DAYS: "120"
+        run: |
+          python scripts/train_publish_if_new.py
+
+      - name: Upload training logs (optional)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: train-logs
+          path: |
+            models/metadata.json
+            models/features.json
+          if-no-files-found: ignore
