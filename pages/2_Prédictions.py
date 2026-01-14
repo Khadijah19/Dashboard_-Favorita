@@ -1,16 +1,17 @@
-# pages/2_Prédictions.py
+# pages/2_Predictions.py
 # -*- coding: utf-8 -*-
 
 import os
 import sys
 from pathlib import Path
+from datetime import timedelta
 
 import streamlit as st
 import pandas as pd
 import numpy as np
 
-# ✅ Fix import utils sur Streamlit Cloud
-ROOT = Path(__file__).resolve().parents[1]  # repo root (où se trouve utils/)
+# Fix import utils sur Streamlit Cloud
+ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from utils.data_loader import load_train_from_hf
@@ -21,20 +22,19 @@ from utils.hf_artifacts import download_artifacts_from_latest
 # ============================================================
 st.set_page_config(
     page_title="Prédictions - Favorita",
-    page_icon="🔮",
+    page_icon="📦",
     layout="wide",
 )
 
-# --- HF settings (dataset) ---
 HF_REPO_ID = os.getenv("HF_REPO_ID", "khadidia-77/favorita")
 HF_REPO_TYPE = os.getenv("HF_REPO_TYPE", "dataset")
-HF_TOKEN = st.secrets.get("HF_TOKEN", os.getenv("HF_TOKEN"))  # peut être None si repo public
+HF_TOKEN = st.secrets.get("HF_TOKEN", os.getenv("HF_TOKEN"))
 
 PARQUET_NAME = "train_last10w.parquet"
 MAX_WEEKS = 10
 
 # ============================================================
-# CSS (✅ adopté depuis app.py)
+# CSS (adopté depuis app.py)
 # ============================================================
 st.markdown(
     """
@@ -116,9 +116,9 @@ st.markdown(
 /* ===== KPI CARDS ===== */
 .kpi-container {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(3, 1fr);
     gap: 1.5rem;
-    max-width: 900px;
+    max-width: 1100px;
     margin: 0 auto 2rem auto;
 }
 
@@ -143,9 +143,6 @@ st.markdown(
     background: radial-gradient(circle, rgba(0, 0, 0, 0.03) 0%, transparent 70%);
     border-radius: 50%;
 }
-
-.kpi-card:nth-child(1) { border-left-color: #3b82f6; }
-.kpi-card:nth-child(2) { border-left-color: #8b5cf6; }
 
 .kpi-card:hover {
     transform: translateY(-6px);
@@ -343,35 +340,33 @@ section[data-testid="stSidebar"] h2 {
 )
 
 # ============================================================
-# LOAD HF ARTIFACTS (model + pipeline + features)
+# Load HF artifacts
 # ============================================================
 @st.cache_resource(show_spinner=True)
 def load_artifacts_hf():
     return download_artifacts_from_latest(
         repo_id=HF_REPO_ID,
         repo_type=HF_REPO_TYPE,
-        hf_token=HF_TOKEN,  # ok même si None (repo public)
+        hf_token=HF_TOKEN,
         artifacts_dir="artifacts",
         cache_dir=".cache/favorita_artifacts",
     )
 
 try:
     model, pipe, feature_cols, meta = load_artifacts_hf()
-    st.caption(
-        f"✅ Model HF chargé | run={meta.get('run_id')} | trained_at={meta.get('trained_at', meta.get('updated_at'))}"
-    )
 except Exception as e:
-    st.error("❌ Impossible de charger les artefacts depuis HuggingFace.")
+    st.error("Impossible de charger les artefacts depuis HuggingFace.")
     st.exception(e)
     st.stop()
 
 # ============================================================
-# LOAD DATA (HF ONLY)
+# Load recent data
 # ============================================================
 @st.cache_data(show_spinner=True)
 def load_recent_data(weeks: int):
+    # NOTE: si ton loader ne supporte pas columns=, supprime ce paramètre
     df_ = load_train_from_hf(
-        weeks=int(weeks),  # ✅ fix cache/param
+        weeks=int(weeks),
         filename=PARQUET_NAME,
         columns=["date", "store_nbr", "item_nbr", "onpromotion"],
     )
@@ -391,16 +386,16 @@ min_d = df["date"].min().date()
 max_d = df["date"].max().date()
 
 # ============================================================
-# HEADER (✅ style app.py)
+# HEADER (pro)
 # ============================================================
 st.markdown(
     f"""
 <div class="dashboard-hero">
   <div class="hero-content">
-    <div class="hero-title">🔮 Prédictions IA</div>
+    <div class="hero-title">Prévisions de ventes</div>
     <div class="hero-subtitle">
-      Moteur de prévision des ventes (HF artifacts)<br>
-      Fenêtre: <b>{WEEKS} semaines</b> · 📅 {min_d} → {max_d} · 📦 {PARQUET_NAME}
+      Prédictions générées à partir des artefacts du modèle publié sur HuggingFace.<br>
+      Fenêtre de données: <b>{WEEKS} semaines</b> · Période: {min_d} → {max_d} · Source: {PARQUET_NAME}
     </div>
   </div>
 </div>
@@ -408,29 +403,31 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+st.caption(
+    f"Model loaded | run={meta.get('run_id')} | trained_at={meta.get('trained_at', meta.get('updated_at'))}"
+)
+
 # ============================================================
 # SIDEBAR
 # ============================================================
 with st.sidebar:
-    st.markdown("## Configuration")
+    st.markdown("## Paramètres")
 
-    with st.expander("⚡ Prédiction Instantanée", expanded=True):
-        from datetime import timedelta
+    with st.expander("Prévision ponctuelle", expanded=True):
+        future_max = max_d + timedelta(days=60)
+        date_in = st.date_input("Date", value=max_d, min_value=min_d, max_value=future_max)
+        store_nbr = st.selectbox("Store", options=store_list, index=0)
 
-        future_max = max_d + timedelta(days=60)  # ou 365
-        date_in = st.date_input("📅 Date", value=max_d, min_value=min_d, max_value=future_max)
-        store_nbr = st.selectbox("🏪 Store", options=store_list, index=0)
-
-        q = st.text_input("🔍 Rechercher un item", value="", placeholder="ID de l'item...")
+        q = st.text_input("Recherche item", value="", placeholder="Saisir un identifiant d'item...")
         if q.strip():
             item_opts = [x for x in item_list if q.strip() in str(x)][:5000]
         else:
             item_opts = item_list[:5000]
 
-        item_nbr = st.selectbox("📦 Item", options=item_opts, index=0)
-        onpromotion = st.checkbox("🏷️ En promotion", value=False)
+        item_nbr = st.selectbox("Item", options=item_opts, index=0)
+        onpromotion = st.checkbox("Promotion", value=False)
 
-    with st.expander("📊 Prédiction sur Période", expanded=False):
+    with st.expander("Prévision sur période", expanded=False):
         date_range = st.date_input(
             "Période",
             value=(min_d, max_d),
@@ -440,15 +437,21 @@ with st.sidebar:
         )
         store_sel = st.multiselect("Stores", options=store_list, default=[])
         item_sel = st.multiselect("Items", options=item_opts, default=[])
-        run_period = st.button("🚀 Lancer Prédiction", width="stretch")
+        group_mode = st.selectbox(
+            "Agrégation du graphique",
+            ["Par couple (store, item)", "Par item", "Par store"],
+            index=0,
+        )
+        top_n = st.slider("Nombre de séries maximum (Top N)", 1, 30, 10, 1)
+        run_period = st.button("Lancer la prédiction", width="stretch")
 
 # ============================================================
-# TABS
+# Tabs
 # ============================================================
-tab1, tab2 = st.tabs(["⚡ Instantané", "📈 Période"])
+tab1, tab2 = st.tabs(["Prévision ponctuelle", "Prévision sur période"])
 
 # ============================================================
-# TAB 1 — SINGLE PRED
+# TAB 1 — Single prediction
 # ============================================================
 with tab1:
     new_df = pd.DataFrame(
@@ -470,53 +473,54 @@ with tab1:
     pred_log = float(model.predict(X)[0])
     pred_sales = float(np.expm1(pred_log))
 
-    # ✅ Style "chart-section" (comme app.py)
     st.markdown('<div class="chart-section">', unsafe_allow_html=True)
     st.markdown(
         """
         <div class="chart-header">
           <div class="chart-title">
             <span class="chart-icon"></span>
-            Prévision instantanée
+            Résultat de la prévision
           </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    # KPI cards version prediction (réutilise kpi-card)
     st.markdown(
         f"""
-<div class="kpi-container" style="max-width: 1100px;">
-  <div class="kpi-card">
-    <div class="kpi-label">Prévision estimée</div>
+<div class="kpi-container" style="grid-template-columns: repeat(3, 1fr);">
+  <div class="kpi-card" style="border-left-color:#3b82f6;">
+    <div class="kpi-label">Prévision (unités)</div>
     <div class="kpi-value">{pred_sales:.2f}</div>
   </div>
-  <div class="kpi-card">
-    <div class="kpi-label">Log(pred)</div>
+  <div class="kpi-card" style="border-left-color:#8b5cf6;">
+    <div class="kpi-label">Valeur log1p</div>
     <div class="kpi-value">{pred_log:.4f}</div>
+  </div>
+  <div class="kpi-card" style="border-left-color:#ec4899;">
+    <div class="kpi-label">Indicateur promotion</div>
+    <div class="kpi-value">{'Oui' if onpromotion else 'Non'}</div>
   </div>
 </div>
 """,
         unsafe_allow_html=True,
     )
 
-    # détails
     c1, c2 = st.columns(2)
     with c1:
-        st.write(f"📅 **Date** : {pd.to_datetime(date_in).strftime('%d/%m/%Y')}")
-        st.write(f"🏪 **Store** : {store_nbr}")
+        st.write(f"Date: {pd.to_datetime(date_in).strftime('%d/%m/%Y')}")
+        st.write(f"Store: {store_nbr}")
     with c2:
-        st.write(f"📦 **Item** : {item_nbr}")
-        st.write(f"🏷️ **Promotion** : {'✅ Oui' if onpromotion else '❌ Non'}")
+        st.write(f"Item: {item_nbr}")
+        st.write("Source des features: pipeline + features_columns du dernier run")
+
+    with st.expander("Observation envoyée au pipeline", expanded=False):
+        st.dataframe(new_df, width="stretch")
 
     st.markdown("</div>", unsafe_allow_html=True)
 
-    with st.expander("🔍 Détails de l'observation"):
-        st.dataframe(new_df, width="stretch")
-
 # ============================================================
-# TAB 2 — PERIOD PRED
+# TAB 2 — Period predictions + chart by couple store-item
 # ============================================================
 with tab2:
     st.markdown('<div class="chart-section">', unsafe_allow_html=True)
@@ -525,11 +529,15 @@ with tab2:
         <div class="chart-header">
           <div class="chart-title">
             <span class="chart-icon"></span>
-            Prédictions sur période avec filtres
+            Résultats sur période
           </div>
         </div>
         """,
         unsafe_allow_html=True,
+    )
+
+    st.write(
+        "La prédiction est calculée ligne par ligne, puis le graphique est produit selon le mode d'agrégation choisi."
     )
 
     if run_period:
@@ -551,47 +559,46 @@ with tab2:
             f = f.loc[f["item_nbr"].isin(item_sel)]
 
         if len(f) == 0:
-            st.warning("⚠️ Aucune ligne après filtres.")
+            st.warning("Aucune ligne après application des filtres.")
             st.markdown("</div>", unsafe_allow_html=True)
             st.stop()
 
         nmax = 300_000
         if len(f) > nmax:
             f = f.sample(nmax, random_state=42)
-            st.info(f"📊 Dataset échantillonné : {nmax:,} lignes")
+            st.info(f"Dataset échantillonné à {nmax:,} lignes.")
 
-        with st.spinner("⚙️ Prédiction en cours..."):
+        with st.spinner("Calcul des prédictions..."):
             Xf_enriched = pipe.transform(f)
             Xf = (
                 Xf_enriched.reindex(columns=feature_cols, fill_value=0)
                 .replace([np.inf, -np.inf], np.nan)
                 .fillna(0)
             )
-
             pred_log_arr = model.predict(Xf)
             pred = np.expm1(pred_log_arr)
 
         out = f[["date", "store_nbr", "item_nbr"]].copy()
         out["pred_unit_sales"] = pred.astype("float32")
 
+        # KPIs globaux
         total = float(out["pred_unit_sales"].sum())
         avg = float(out["pred_unit_sales"].mean())
         nrows = int(len(out))
 
-        # KPIs (style kpi-card)
         st.markdown(
             f"""
-<div class="kpi-container" style="grid-template-columns: repeat(3, 1fr); max-width: 1100px;">
+<div class="kpi-container">
   <div class="kpi-card" style="border-left-color:#3b82f6;">
-    <div class="kpi-label">Total prédit</div>
+    <div class="kpi-label">Somme des prédictions</div>
     <div class="kpi-value">{total:,.0f}</div>
   </div>
   <div class="kpi-card" style="border-left-color:#8b5cf6;">
-    <div class="kpi-label">Moyenne / ligne</div>
+    <div class="kpi-label">Moyenne par ligne</div>
     <div class="kpi-value">{avg:.2f}</div>
   </div>
   <div class="kpi-card" style="border-left-color:#ec4899;">
-    <div class="kpi-label">Lignes</div>
+    <div class="kpi-label">Nombre de lignes</div>
     <div class="kpi-value">{nrows:,}</div>
   </div>
 </div>
@@ -599,34 +606,54 @@ with tab2:
             unsafe_allow_html=True,
         )
 
+        # ---- Graph: multi-series by (store,item) or item or store ----
+        if group_mode == "Par couple (store, item)":
+            out["series"] = out["store_nbr"].astype(str) + " · " + out["item_nbr"].astype(str)
+            group_cols = ["date", "series"]
+        elif group_mode == "Par item":
+            out["series"] = out["item_nbr"].astype(str)
+            group_cols = ["date", "series"]
+        else:
+            out["series"] = out["store_nbr"].astype(str)
+            group_cols = ["date", "series"]
+
+        g = out.groupby(group_cols, as_index=False)["pred_unit_sales"].sum()
+
+        # Top N séries (par somme totale sur la période)
+        rank = g.groupby("series", as_index=False)["pred_unit_sales"].sum().sort_values("pred_unit_sales", ascending=False)
+        top_series = rank["series"].head(int(top_n)).tolist()
+        g = g.loc[g["series"].isin(top_series)]
+
+        # pivot pour un graphe multi-lignes
+        pivot = g.pivot(index="date", columns="series", values="pred_unit_sales").sort_index()
+
         st.markdown(
             """
 <div class="chart-header" style="margin-top:1.5rem;">
   <div class="chart-title">
     <span class="chart-icon"></span>
-    Évolution temporelle (total prédit)
+    Evolution temporelle des prédictions
   </div>
 </div>
 """,
             unsafe_allow_html=True,
         )
 
-        g1 = out.groupby("date", as_index=False)["pred_unit_sales"].sum()
-        st.line_chart(g1.set_index("date"))
+        st.line_chart(pivot)
 
-        with st.expander("📄 Table de prédictions (aperçu)"):
-            st.dataframe(out.head(200), width="stretch")
+        with st.expander("Aperçu des prédictions", expanded=False):
+            st.dataframe(out.head(500), width="stretch")
 
         csv = out.to_csv(index=False).encode("utf-8")
         st.download_button(
-            "⬇️ Télécharger les prédictions (CSV)",
+            "Télécharger le fichier CSV",
             data=csv,
             file_name="predictions_favorita.csv",
             mime="text/csv",
             width="stretch",
         )
     else:
-        st.info("ℹ️ Configure la période + filtres dans la sidebar, puis clique sur **Lancer Prédiction**.")
+        st.info("Définir la période et les filtres dans la barre latérale, puis lancer la prédiction.")
 
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -638,7 +665,7 @@ st.markdown(
     """
 <div class="dashboard-footer">
   <p class="footer-title">Favorita Forecast Dashboard</p>
-  <p class="footer-text">© 2026 · Propulsé par Streamlit · Made with ❤️</p>
+  <p class="footer-text">© 2026 · Streamlit</p>
 </div>
 """,
     unsafe_allow_html=True,
