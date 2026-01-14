@@ -529,18 +529,17 @@ with tab2:
         <div class="chart-header">
           <div class="chart-title">
             <span class="chart-icon"></span>
-            Résultats sur période
+            Prévision sur période
           </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    st.write(
-        "La prédiction est calculée ligne par ligne, puis le graphique est produit selon le mode d'agrégation choisi."
-    )
+    st.write("Sélectionnez une période, filtrez si besoin, puis lancez la prédiction. Le graphique affiche les séries les plus importantes sur la période (Top N).")
 
     if run_period:
+        # ---------- Dates ----------
         if isinstance(date_range, (tuple, list)) and len(date_range) == 2:
             start_d = pd.to_datetime(date_range[0])
             end_d = pd.to_datetime(date_range[1])
@@ -551,6 +550,7 @@ with tab2:
         if start_d > end_d:
             start_d, end_d = end_d, start_d
 
+        # ---------- Filtrage ----------
         f = df.loc[(df["date"] >= start_d) & (df["date"] <= end_d)].copy()
 
         if store_sel:
@@ -559,91 +559,97 @@ with tab2:
             f = f.loc[f["item_nbr"].isin(item_sel)]
 
         if len(f) == 0:
-            st.warning("Aucune ligne après application des filtres.")
+            st.warning("Aucune donnée disponible après application des filtres.")
             st.markdown("</div>", unsafe_allow_html=True)
             st.stop()
 
+        # ---------- Cap volume ----------
         nmax = 300_000
         if len(f) > nmax:
             f = f.sample(nmax, random_state=42)
-            st.info(f"Dataset échantillonné à {nmax:,} lignes.")
+            st.info(f"Échantillonnage appliqué : {nmax:,} lignes.")
 
+        # ---------- Prédiction ----------
         with st.spinner("Calcul des prédictions..."):
+            # IMPORTANT : si ton pipeline a besoin exactement des 4 colonnes,
+            # assure-toi que f contient bien "date, store_nbr, item_nbr, onpromotion"
             Xf_enriched = pipe.transform(f)
+
             Xf = (
                 Xf_enriched.reindex(columns=feature_cols, fill_value=0)
                 .replace([np.inf, -np.inf], np.nan)
                 .fillna(0)
             )
+
             pred_log_arr = model.predict(Xf)
             pred = np.expm1(pred_log_arr)
 
         out = f[["date", "store_nbr", "item_nbr"]].copy()
-        out["pred_unit_sales"] = pred.astype("float32")
+        out["pred_unit_sales"] = pd.to_numeric(pred, errors="coerce").astype("float32")
+        out = out.dropna(subset=["pred_unit_sales"])
 
-        # KPIs globaux
-        total = float(out["pred_unit_sales"].sum())
-        avg = float(out["pred_unit_sales"].mean())
-        nrows = int(len(out))
+        # ---------- Choix d'agrégation ----------
+        if group_mode == "Par couple (store, item)":
+            out["series"] = (
+                out["store_nbr"].astype(int).astype(str)
+                + " · "
+                + out["item_nbr"].astype(int).astype(str)
+            )
+        elif group_mode == "Par item":
+            out["series"] = out["item_nbr"].astype(int).astype(str)
+        else:
+            out["series"] = out["store_nbr"].astype(int).astype(str)
 
-        st.markdown(
-            f"""
-<div class="kpi-container">
-  <div class="kpi-card" style="border-left-color:#3b82f6;">
-    <div class="kpi-label">Somme des prédictions</div>
-    <div class="kpi-value">{total:,.0f}</div>
-  </div>
-  <div class="kpi-card" style="border-left-color:#8b5cf6;">
-    <div class="kpi-label">Moyenne par ligne</div>
-    <div class="kpi-value">{avg:.2f}</div>
-  </div>
-  <div class="kpi-card" style="border-left-color:#ec4899;">
-    <div class="kpi-label">Nombre de lignes</div>
-    <div class="kpi-value">{nrows:,}</div>
-  </div>
-</div>
-""",
-            unsafe_allow_html=True,
+        # Agrégation journalière par série
+        g = (
+            out.groupby(["date", "series"], as_index=False)["pred_unit_sales"]
+            .sum()
+            .sort_values(["date", "series"])
         )
 
-        # ---- Graph: multi-series by (store,item) or item or store ----
-        if group_mode == "Par couple (store, item)":
-            out["series"] = out["store_nbr"].astype(str) + " · " + out["item_nbr"].astype(str)
-            group_cols = ["date", "series"]
-        elif group_mode == "Par item":
-            out["series"] = out["item_nbr"].astype(str)
-            group_cols = ["date", "series"]
-        else:
-            out["series"] = out["store_nbr"].astype(str)
-            group_cols = ["date", "series"]
-
-        g = out.groupby(group_cols, as_index=False)["pred_unit_sales"].sum()
-
-        # Top N séries (par somme totale sur la période)
-        rank = g.groupby("series", as_index=False)["pred_unit_sales"].sum().sort_values("pred_unit_sales", ascending=False)
+        # ---------- Top N séries ----------
+        # (les plus importantes sur la période, par somme totale)
+        rank = (
+            g.groupby("series", as_index=False)["pred_unit_sales"]
+            .sum()
+            .sort_values("pred_unit_sales", ascending=False)
+        )
         top_series = rank["series"].head(int(top_n)).tolist()
         g = g.loc[g["series"].isin(top_series)]
 
-        # pivot pour un graphe multi-lignes
-        pivot = g.pivot(index="date", columns="series", values="pred_unit_sales").sort_index()
+        if len(g) == 0:
+            st.warning("Aucune série à afficher (Top N vide). Essayez d'augmenter Top N ou de réduire les filtres.")
+            st.markdown("</div>", unsafe_allow_html=True)
+            st.stop()
 
-        st.markdown(
-            """
-<div class="chart-header" style="margin-top:1.5rem;">
-  <div class="chart-title">
-    <span class="chart-icon"></span>
-    Evolution temporelle des prédictions
-  </div>
-</div>
-""",
-            unsafe_allow_html=True,
+        # ---------- Plot pro (Plotly) ----------
+        import plotly.express as px
+
+        fig = px.line(
+            g,
+            x="date",
+            y="pred_unit_sales",
+            color="series",
+            markers=False,
+            labels={
+                "date": "Date",
+                "pred_unit_sales": "Ventes prédites (unités)",
+                "series": "Série",
+            },
+        )
+        fig.update_layout(
+            height=520,
+            margin=dict(l=10, r=10, t=10, b=10),
+            legend_title_text="",
         )
 
-        st.line_chart(pivot)
+        st.plotly_chart(fig, width="stretch")
 
-        with st.expander("Aperçu des prédictions", expanded=False):
-            st.dataframe(out.head(500), width="stretch")
+        # ---------- Table ----------
+        with st.expander("Table de prédictions (aperçu)", expanded=False):
+            st.dataframe(out.sort_values(["date", "store_nbr", "item_nbr"]).head(500), width="stretch")
 
+        # ---------- Export ----------
         csv = out.to_csv(index=False).encode("utf-8")
         st.download_button(
             "Télécharger le fichier CSV",
@@ -653,7 +659,7 @@ with tab2:
             width="stretch",
         )
     else:
-        st.info("Définir la période et les filtres dans la barre latérale, puis lancer la prédiction.")
+        st.info("Définissez la période et les filtres dans la barre latérale, puis lancez la prédiction.")
 
     st.markdown("</div>", unsafe_allow_html=True)
 
