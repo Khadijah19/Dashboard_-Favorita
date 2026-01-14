@@ -24,7 +24,7 @@ st.set_page_config(
 )
 
 PARQUET_NAME = "train_last10w.parquet"
-WEEKS_WINDOW = 10  # on fixe à 10 semaines (pas de selectbox pour éviter crash)
+WEEKS_WINDOW = 10  # fenêtre fixée (stabilité)
 
 # ============================================================
 # CSS PREMIUM (hero centré + animations)
@@ -36,7 +36,7 @@ st.markdown(
 * { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
 .block-container { padding: 2rem 3rem 3rem 3rem; max-width: 1600px; }
 
-/* ===== HERO SECTION (CENTERED + ANIM) ===== */
+/* HERO */
 .dashboard-hero{
     background: linear-gradient(135deg,#0f172a 0%,#1e293b 50%,#334155 100%);
     border-radius: 26px; padding: 4.2rem 2.8rem; margin-bottom: 2rem;
@@ -114,7 +114,7 @@ st.markdown(
 }
 @keyframes fadeUp{ from{opacity:0;transform:translateY(10px);} to{opacity:1;transform:translateY(0);} }
 
-/* ===== KPI CARDS ===== */
+/* KPI */
 .kpi-container{
     display:grid; grid-template-columns: repeat(2, 1fr);
     gap:1.5rem; max-width:700px; margin: 0 auto 2rem auto;
@@ -141,7 +141,7 @@ st.markdown(
     font-size:2.2rem; font-weight:900; color:#0f172a; line-height:1;
 }
 
-/* ===== CHART SECTIONS ===== */
+/* Sections */
 .chart-section{
     background:white; border-radius:20px; padding:2.5rem;
     box-shadow:0 8px 35px rgba(0,0,0,0.08);
@@ -166,7 +166,7 @@ st.markdown(
     background: linear-gradient(135deg,#3b82f6 0%,#8b5cf6 100%);
 }
 
-/* ===== SIDEBAR ===== */
+/* Sidebar */
 section[data-testid="stSidebar"]{
     background: linear-gradient(180deg,#fafaf9 0%,#ffffff 100%);
     border-right: 2px solid rgba(0,0,0,0.06);
@@ -181,13 +181,13 @@ section[data-testid="stSidebar"] h2{
     border-bottom:2px solid #f1f5f9;
 }
 
-/* ===== INFO BOXES ===== */
+/* Info box */
 .stInfo{
     background: linear-gradient(135deg,#dbeafe 0%,#e0e7ff 100%);
     border-left:4px solid #3b82f6; border-radius:8px;
 }
 
-/* ===== FOOTER ===== */
+/* Footer */
 .dashboard-footer{
     text-align:center; color:#64748b; padding:2rem 0; margin-top:3rem;
     border-top:2px solid #f1f5f9;
@@ -210,7 +210,8 @@ st.markdown(
     <div class="hero-kicker">Sales forecasting • Analytics</div>
     <div class="hero-title">Bienvenue sur Favorita Forecast</div>
     <div class="hero-subtitle">
-      Vous pouvez explorez les ventes récentes et surtout faire des prédictions sur vos ventes futures.
+      Explorez les ventes récentes, comparez les couples store–item et identifiez les familles les plus contributrices,
+      avec une navigation claire et des visualisations à haute lisibilité.
     </div>
     <div class="hero-actions">
       <div class="hero-chip"><span class="dot"></span> Données récentes (10 semaines)</div>
@@ -259,15 +260,23 @@ store_list = np.sort(train["store_nbr"].dropna().unique()).tolist()
 item_list = np.sort(train["item_nbr"].dropna().unique()).tolist()
 
 # ============================================================
-# SIDEBAR FILTERS
+# SIDEBAR FILTERS (avec contrôle "période" obligatoire)
 # ============================================================
 with st.sidebar:
+    # IMPORTANT: Streamlit peut renvoyer un seul jour si l'utilisateur clique "date unique"
     date_range = st.date_input(
         "Période",
         value=(min_d.date(), max_d.date()),
         min_value=min_d.date(),
         max_value=max_d.date(),
+        help="Sélectionnez une date de début et une date de fin.",
+        key="date_range",
     )
+
+    # ✅ Validation : si ce n'est pas une paire (start, end), on affiche un message clair
+    if not (isinstance(date_range, (tuple, list)) and len(date_range) == 2):
+        st.info("Veuillez sélectionner une période (date de début et date de fin).")
+        st.stop()
 
     store_sel = st.multiselect("Stores", store_list, default=[])
 
@@ -290,6 +299,8 @@ with st.sidebar:
 # ============================================================
 start_d = pd.to_datetime(date_range[0])
 end_d = pd.to_datetime(date_range[1])
+if start_d > end_d:
+    start_d, end_d = end_d, start_d
 
 df = train.loc[(train["date"] >= start_d) & (train["date"] <= end_d)].copy()
 
