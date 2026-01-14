@@ -169,7 +169,7 @@ except Exception as e:
 # ============================================================
 @st.cache_data(show_spinner=True)
 def load_recent_data(weeks: int):
-    df_ = load_train_from_hf(weeks=WEEKS,filename=PARQUET_NAME,columns=["date", "store_nbr", "item_nbr"])  # ✅ léger)
+    df_ = load_train_from_hf(weeks=WEEKS,filename=PARQUET_NAME,columns=["date", "store_nbr", "item_nbr", "onpromotion"])  # ✅ léger)
     df_["date"] = pd.to_datetime(df_["date"], errors="coerce").dt.normalize()
     df_ = df_.dropna(subset=["date"])
     return df_
