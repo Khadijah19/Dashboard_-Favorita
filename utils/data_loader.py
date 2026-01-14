@@ -1,12 +1,10 @@
 # utils/data_loader.py
 # -*- coding: utf-8 -*-
-
 from __future__ import annotations
 
 import time
 import json
 from pathlib import Path
-
 import pandas as pd
 from huggingface_hub import hf_hub_download
 
@@ -17,31 +15,18 @@ HF_DATASET_REPO = "khadidia-77/favorita"
 HF_REPO_TYPE = "dataset"
 DEFAULT_CACHE_DIR = ".cache/favorita_data"
 
-
 # ============================================================
 # Download helper (retry + backoff)
 # ============================================================
 def _hf_download_with_retry(
-    *,
-    repo_id: str,
-    repo_type: str,
     filename: str,
-    cache_dir: str,
-    token: str | None,
+    repo_id: str = HF_DATASET_REPO,
+    repo_type: str = HF_REPO_TYPE,
+    cache_dir: str = DEFAULT_CACHE_DIR,
+    token: str | None = None,
     tries: int = 4,
-) -> str:
-    """
-    Télécharge un fichier depuis HuggingFace Hub avec retry + backoff.
-    IMPORTANT: paramètres keyword-only (*) pour éviter les erreurs d'ordre.
-    """
+):
     last = None
-
-    # crée le cache local si besoin (utile sur certains environnements)
-    try:
-        Path(cache_dir).mkdir(parents=True, exist_ok=True)
-    except Exception:
-        pass
-
     for k in range(tries):
         try:
             return hf_hub_download(
@@ -69,9 +54,9 @@ def load_train_from_hf(
     columns: list[str] | None = None,
 ) -> pd.DataFrame:
     local = _hf_download_with_retry(
+        filename=filename,
         repo_id=repo_id,
         repo_type=HF_REPO_TYPE,
-        filename=filename,
         cache_dir=cache_dir,
         token=hf_token,
     )
@@ -90,30 +75,25 @@ def load_train_from_hf(
     if "onpromotion" in df.columns:
         df["onpromotion"] = df["onpromotion"].fillna(False).astype(bool)
 
-    # Fenêtre (10 semaines par défaut)
     max_date = df["date"].max()
     start_date = max_date - pd.Timedelta(weeks=int(weeks))
     return df.loc[df["date"] >= start_date].copy()
 
 
+# NOTE: filename est 1er argument => compatible avec load_items_hf("items.csv")
 def load_items_hf(
+    filename: str = "items.csv",
     repo_id: str = HF_DATASET_REPO,
     hf_token: str | None = None,
-    filename: str = "items.csv",
     cache_dir: str = DEFAULT_CACHE_DIR,
 ) -> pd.DataFrame:
     local = _hf_download_with_retry(
-        repo_id=repo_id,
-        repo_type=HF_REPO_TYPE,
-        filename=filename,
-        cache_dir=cache_dir,
-        token=hf_token,
+        filename=filename, repo_id=repo_id, repo_type=HF_REPO_TYPE, cache_dir=cache_dir, token=hf_token
     )
-
     df = pd.read_csv(local)
+
     df["item_nbr"] = pd.to_numeric(df["item_nbr"], errors="coerce").fillna(0).astype("int32")
     df["family"] = df["family"].fillna("UNKNOWN").astype(str).str.strip()
-
     if "class" in df.columns:
         df["class"] = pd.to_numeric(df["class"], errors="coerce").fillna(-1).astype("int16")
     if "perishable" in df.columns:
@@ -122,45 +102,34 @@ def load_items_hf(
 
 
 def load_stores_hf(
+    filename: str = "stores.csv",
     repo_id: str = HF_DATASET_REPO,
     hf_token: str | None = None,
-    filename: str = "stores.csv",
     cache_dir: str = DEFAULT_CACHE_DIR,
 ) -> pd.DataFrame:
     local = _hf_download_with_retry(
-        repo_id=repo_id,
-        repo_type=HF_REPO_TYPE,
-        filename=filename,
-        cache_dir=cache_dir,
-        token=hf_token,
+        filename=filename, repo_id=repo_id, repo_type=HF_REPO_TYPE, cache_dir=cache_dir, token=hf_token
     )
-
     df = pd.read_csv(local)
-    df["store_nbr"] = pd.to_numeric(df["store_nbr"], errors="coerce").fillna(0).astype("int16")
 
+    df["store_nbr"] = pd.to_numeric(df["store_nbr"], errors="coerce").fillna(0).astype("int16")
     for c in ["city", "state", "type"]:
         if c in df.columns:
             df[c] = df[c].fillna("UNKNOWN").astype(str).str.strip()
-
     if "cluster" in df.columns:
         df["cluster"] = pd.to_numeric(df["cluster"], errors="coerce").fillna(-1).astype("int16")
     return df
 
 
 def load_oil_hf(
+    filename: str = "oil.csv",
     repo_id: str = HF_DATASET_REPO,
     hf_token: str | None = None,
-    filename: str = "oil.csv",
     cache_dir: str = DEFAULT_CACHE_DIR,
 ) -> pd.DataFrame:
     local = _hf_download_with_retry(
-        repo_id=repo_id,
-        repo_type=HF_REPO_TYPE,
-        filename=filename,
-        cache_dir=cache_dir,
-        token=hf_token,
+        filename=filename, repo_id=repo_id, repo_type=HF_REPO_TYPE, cache_dir=cache_dir, token=hf_token
     )
-
     df = pd.read_csv(local)
     df["date"] = pd.to_datetime(df["date"], errors="coerce").dt.normalize()
     df["dcoilwtico"] = pd.to_numeric(df["dcoilwtico"], errors="coerce")
@@ -168,19 +137,14 @@ def load_oil_hf(
 
 
 def load_transactions_hf(
+    filename: str = "transactions.csv",
     repo_id: str = HF_DATASET_REPO,
     hf_token: str | None = None,
-    filename: str = "transactions.csv",
     cache_dir: str = DEFAULT_CACHE_DIR,
 ) -> pd.DataFrame:
     local = _hf_download_with_retry(
-        repo_id=repo_id,
-        repo_type=HF_REPO_TYPE,
-        filename=filename,
-        cache_dir=cache_dir,
-        token=hf_token,
+        filename=filename, repo_id=repo_id, repo_type=HF_REPO_TYPE, cache_dir=cache_dir, token=hf_token
     )
-
     df = pd.read_csv(local)
     df["date"] = pd.to_datetime(df["date"], errors="coerce").dt.normalize()
     df["store_nbr"] = pd.to_numeric(df["store_nbr"], errors="coerce").fillna(0).astype("int16")
@@ -189,26 +153,19 @@ def load_transactions_hf(
 
 
 def load_holidays_hf(
+    filename: str = "holidays_events.csv",
     repo_id: str = HF_DATASET_REPO,
     hf_token: str | None = None,
-    filename: str = "holidays_events.csv",
     cache_dir: str = DEFAULT_CACHE_DIR,
 ) -> pd.DataFrame:
     local = _hf_download_with_retry(
-        repo_id=repo_id,
-        repo_type=HF_REPO_TYPE,
-        filename=filename,
-        cache_dir=cache_dir,
-        token=hf_token,
+        filename=filename, repo_id=repo_id, repo_type=HF_REPO_TYPE, cache_dir=cache_dir, token=hf_token
     )
-
     df = pd.read_csv(local)
     df["date"] = pd.to_datetime(df["date"], errors="coerce").dt.normalize()
-
     for c in ["type", "locale", "locale_name", "description"]:
         if c in df.columns:
             df[c] = df[c].fillna("").astype(str).str.strip()
-
     if "transferred" in df.columns:
         df["transferred"] = df["transferred"].fillna(False).astype(bool)
     return df
