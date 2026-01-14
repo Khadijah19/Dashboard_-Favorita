@@ -107,17 +107,22 @@ def _winpath_compat_patch():
                 plocal.PureWindowsPath = backup[(id(plocal), "PureWindowsPath")]  # type: ignore
 
 
-
-def read_latest(repo_id, repo_type="dataset", hf_token=None,
-                filename="latest.json", cache_dir=".cache/favorita_artifacts"):
-    path = hf_hub_download(
+def read_latest(
+    repo_id: str = HF_DATASET_REPO,
+    repo_type: str = HF_REPO_TYPE,
+    hf_token: Optional[str] = None,
+    artifacts_dir: str = ARTIFACTS_ROOT,
+) -> Dict:
+    """
+    Lit artifacts/latest.json depuis HF.
+    """
+    local = hf_hub_download(
         repo_id=repo_id,
         repo_type=repo_type,
-        filename=filename,
+        filename=f"{artifacts_dir}/latest.json",
         token=hf_token,
-        cache_dir=cache_dir,
     )
-    with open(path, "r", encoding="utf-8") as f:
+    with open(local, "r", encoding="utf-8") as f:
         return json.load(f)
 
 
