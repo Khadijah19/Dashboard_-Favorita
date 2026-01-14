@@ -1,6 +1,13 @@
 # app.py
 # -*- coding: utf-8 -*-
 
+
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent
+sys.path.insert(0, str(ROOT))
+
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -8,11 +15,7 @@ import numpy as np
 from utils.viz import bar_top_families_sum
 from utils.data_loader import load_train_from_hf, load_items_hf, load_stores_hf
 
-import sys
-from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
-sys.path.insert(0, str(ROOT))
 
 # ============================================================
 # CONFIG
