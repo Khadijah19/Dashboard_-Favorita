@@ -1,4 +1,4 @@
-# pages/0_Admin.py (ou ta page Admin actuelle)
+# pages/0_Admin.py
 # -*- coding: utf-8 -*-
 
 import os
@@ -15,7 +15,7 @@ from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 # ============================================================
 # Imports projet
 # ============================================================
-ROOT = Path(__file__).resolve().parents[1]  # remonte au dossier du repo
+ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from utils.hf_artifacts import read_latest, download_artifacts_from_latest
@@ -29,9 +29,37 @@ from utils.data_loader import load_train_from_hf
 st.set_page_config(page_title="Admin", page_icon="🛠️", layout="wide")
 st.title("🛠️ Admin — Entraînement & Artefacts (HF-only)")
 
-HF_REPO_ID = os.getenv("HF_REPO_ID", "khadidia-77/favorita")
+HF_REPO_ID   = os.getenv("HF_REPO_ID", "khadidia-77/favorita")
 HF_REPO_TYPE = os.getenv("HF_REPO_TYPE", "dataset")
 PARQUET_NAME = os.getenv("PARQUET_NAME", "train_last10w.parquet")
+
+# token (priorité secrets)
+HF_TOKEN = None
+try:
+    HF_TOKEN = st.secrets.get("HF_TOKEN", None)
+except Exception:
+    HF_TOKEN = None
+if HF_TOKEN is None:
+    HF_TOKEN = os.getenv("HF_TOKEN", None)
+
+
+# ============================================================
+# ✅ HF GATE (évite download HF au démarrage)
+# ============================================================
+st.markdown("### 🔌 Connexion (HuggingFace)")
+if "hf_ready_admin" not in st.session_state:
+    st.session_state.hf_ready_admin = False
+
+cA, cB = st.columns([0.65, 0.35])
+with cA:
+    st.caption("On ne télécharge rien tant que tu ne cliques pas (évite EOF / reboot sur Streamlit Cloud).")
+with cB:
+    if st.button("🚀 Charger (HF)", width="stretch"):
+        st.session_state.hf_ready_admin = True
+
+if not st.session_state.hf_ready_admin:
+    st.info("Clique sur **Charger (HF)** pour activer la page Admin.")
+    st.stop()
 
 
 # ============================================================
@@ -43,7 +71,6 @@ def _safe_expm1(x):
     return np.expm1(x)
 
 def _to_bool_onpromotion(s: pd.Series) -> pd.Series:
-    # Supporte bool / int / str ("True", "False", "0", "1", "t", "f", etc.)
     if s.dtype == bool:
         return s
     if pd.api.types.is_numeric_dtype(s):
@@ -55,54 +82,56 @@ def _to_bool_onpromotion(s: pd.Series) -> pd.Series:
     return ss.apply(lambda v: True if v in truthy else (False if v in falsy else False))
 
 
-@st.cache_resource(show_spinner=False)
-def load_artifacts_latest(hf_token):
-    # model, pipe, feature_cols, meta
+@st.cache_resource(show_spinner=False, ttl=3600)
+def load_artifacts_latest(repo_id, repo_type, hf_token):
     return download_artifacts_from_latest(
-        repo_id=HF_REPO_ID,
-        repo_type=HF_REPO_TYPE,
+        repo_id=repo_id,
+        repo_type=repo_type,
         hf_token=hf_token,
         artifacts_dir="artifacts",
         cache_dir=".cache/favorita_artifacts",
     )
 
 
-@st.cache_data(show_spinner=False)
-def load_data_weeks(weeks: int):
-    df_ = load_train_from_hf(weeks=int(weeks), filename=PARQUET_NAME)
+@st.cache_data(show_spinner=False, ttl=3600)
+def load_data_weeks(weeks: int, parquet_name: str):
+    df_ = load_train_from_hf(weeks=int(weeks), filename=parquet_name)
     df_["date"] = pd.to_datetime(df_["date"], errors="coerce").dt.normalize()
     df_ = df_.dropna(subset=["date"])
     return df_
 
 
 # ============================================================
-# Latest info
+# Latest info (sur bouton)
 # ============================================================
-try:
-    latest = read_latest()
-    st.success(f"Latest run: {latest.get('run_id')} (maj: {latest.get('updated_at')})")
-except Exception as e:
-    st.warning("Pas de latest.json trouvé pour l’instant.")
-    st.caption(str(e))
+st.divider()
+st.subheader("🧾 Latest run (HF)")
+
+if st.button("🔄 Charger latest.json", width="stretch"):
+    try:
+        latest = read_latest(repo_id=HF_REPO_ID, repo_type=HF_REPO_TYPE, hf_token=HF_TOKEN)
+        st.success(f"Latest run: {latest.get('run_id')} (maj: {latest.get('updated_at')})")
+    except Exception as e:
+        st.warning("Pas de latest.json trouvé pour l’instant.")
+        st.caption(str(e))
+else:
+    st.info("Clique pour charger latest.json (évite les downloads au démarrage).")
 
 
 # ============================================================
 # Train + Publish
 # ============================================================
+st.divider()
+st.subheader("🚀 Entraînement + publication")
+
 weeks_window = st.selectbox("Fenêtre d'entraînement (semaines)", [10, 8, 4, 3, 2, 1], index=0)
 
 if st.button("🚀 Retrain + Publish sur HF", width="stretch"):
-    hf_token = None
-    try:
-        hf_token = st.secrets.get("HF_TOKEN", None)
-    except Exception:
-        hf_token = None
-
     with st.spinner("Entraînement + publication en cours..."):
         res = train_and_publish(
             weeks_window=int(weeks_window),
             hf_repo_id=HF_REPO_ID,
-            hf_token=hf_token,
+            hf_token=HF_TOKEN,
         )
 
     st.success("✅ Terminé ! Nouveau modèle publié.")
@@ -111,7 +140,7 @@ if st.button("🚀 Retrain + Publish sur HF", width="stretch"):
 
 
 # ============================================================
-# ✅ NEW — Eval performances du modèle actuel
+# Eval performances du modèle actuel
 # ============================================================
 st.divider()
 st.subheader("📊 Performances du modèle actuel (latest)")
@@ -123,32 +152,24 @@ with st.expander("Configurer l'évaluation", expanded=True):
     run_eval = st.button("📈 Calculer les performances", width="stretch")
 
 if run_eval:
-    hf_token = None
-    try:
-        hf_token = st.secrets.get("HF_TOKEN", None)
-    except Exception:
-        hf_token = None
-
     # 1) Load artifacts latest
     try:
-        model, pipe, feature_cols, meta = load_artifacts_latest(hf_token)
+        model, pipe, feature_cols, meta = load_artifacts_latest(HF_REPO_ID, HF_REPO_TYPE, HF_TOKEN)
     except Exception as e:
         st.error("❌ Impossible de charger les artefacts latest depuis HF.")
         st.exception(e)
         st.stop()
 
-    st.caption(
-        f"✅ Artifacts: run={meta.get('run_id')} | trained_at={meta.get('trained_at', meta.get('updated_at'))}"
-    )
+    st.caption(f"✅ Artifacts: run={meta.get('run_id')} | trained_at={meta.get('trained_at', meta.get('updated_at'))}")
 
     # 2) Load data window
     with st.spinner("📥 Chargement des données..."):
-        df = load_data_weeks(int(eval_weeks))
+        df = load_data_weeks(int(eval_weeks), PARQUET_NAME)
 
     needed = {"date", "store_nbr", "item_nbr", "onpromotion", "unit_sales"}
     missing = needed - set(df.columns)
     if missing:
-        st.error(f"❌ Colonnes manquantes dans la base pour évaluer: {sorted(list(missing))}")
+        st.error(f"❌ Colonnes manquantes: {sorted(list(missing))}")
         st.stop()
 
     df = df.copy()
@@ -157,7 +178,6 @@ if run_eval:
     df = df.dropna(subset=["unit_sales"])
     df["unit_sales"] = df["unit_sales"].clip(lower=0)
 
-    # 3) Split: last eval_days as validation
     max_d = df["date"].max()
     cut_d = max_d - pd.Timedelta(days=int(eval_days) - 1)
     valid = df.loc[df["date"] >= cut_d].copy()
@@ -166,14 +186,12 @@ if run_eval:
         st.warning("⚠️ Jeu de validation vide (check dates).")
         st.stop()
 
-    # 4) Sample if too big
     if len(valid) > int(max_rows):
         valid = valid.sample(int(max_rows), random_state=42)
         st.info(f"📌 Validation échantillonnée à {len(valid):,} lignes")
 
     st.caption(f"🗓️ Validation: {valid['date'].min().date()} → {valid['date'].max().date()} | n={len(valid):,}")
 
-    # 5) Build X / y (log)
     y_true_log = np.log1p(valid["unit_sales"].values.astype("float64"))
 
     X_input = valid[["date", "store_nbr", "item_nbr", "onpromotion"]].copy()
@@ -188,10 +206,8 @@ if run_eval:
              .reindex(columns=feature_cols, fill_value=0)
              .replace([np.inf, -np.inf], np.nan)
              .fillna(0))
-
         y_pred_log = model.predict(X)
 
-    # 6) Metrics in log + in units
     rmse_log = float(np.sqrt(mean_squared_error(y_true_log, y_pred_log)))
     mae_log  = float(mean_absolute_error(y_true_log, y_pred_log))
     r2_log   = float(r2_score(y_true_log, y_pred_log))
@@ -200,7 +216,7 @@ if run_eval:
     y_pred = _safe_expm1(y_pred_log)
 
     rmse = float(np.sqrt(mean_squared_error(y_true, y_pred)))
-    mae  = float(mean_absolute_error(y_true, y_pred))
+    mae  = float(mean_absolute_error(y_true, y_pred)))
     r2   = float(r2_score(y_true, y_pred))
 
     c1, c2, c3 = st.columns(3)
@@ -213,7 +229,6 @@ if run_eval:
     c5.metric("MAE (log1p)", f"{mae_log:,.4f}")
     c6.metric("R² (log1p)", f"{r2_log:,.4f}")
 
-    # 7) Aperçu
     preview = valid[["date", "store_nbr", "item_nbr", "onpromotion"]].copy()
     preview["y_true_unit_sales"] = y_true.astype("float32")
     preview["y_pred_unit_sales"] = y_pred.astype("float32")
