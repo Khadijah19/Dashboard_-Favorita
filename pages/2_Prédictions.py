@@ -3,8 +3,8 @@
 
 import os
 import sys
+import json
 from pathlib import Path
-from datetime import timedelta
 
 import streamlit as st
 import pandas as pd
@@ -16,7 +16,6 @@ sys.path.insert(0, str(ROOT))
 
 from utils.data_loader import load_train_from_hf
 from utils.hf_artifacts import download_artifacts_from_latest
-
 
 # ============================================================
 # CONFIG
@@ -30,25 +29,13 @@ st.set_page_config(
 # --- HF settings (dataset) ---
 HF_REPO_ID   = os.getenv("HF_REPO_ID", "khadidia-77/favorita")
 HF_REPO_TYPE = os.getenv("HF_REPO_TYPE", "dataset")
-
-# ⚠️ Token : prioriser Secrets (Cloud), fallback env
-HF_TOKEN = None
-try:
-    HF_TOKEN = st.secrets.get("HF_TOKEN", None)
-except Exception:
-    HF_TOKEN = None
-if HF_TOKEN is None:
-    HF_TOKEN = os.getenv("HF_TOKEN", None)
+HF_TOKEN     = st.secrets.get("HF_TOKEN", os.getenv("HF_TOKEN"))  # peut être None si repo public
 
 PARQUET_NAME = "train_last10w.parquet"
 MAX_WEEKS = 10
 
-# ✅ Horizon max pour prédire au-delà du dernier jour observé
-FUTURE_DAYS_MAX = 90  # ajuste (30/60/90/365)
-
-
 # ============================================================
-# CSS (inchangé)
+# CSS
 # ============================================================
 st.markdown("""
 <style>
@@ -126,6 +113,20 @@ st.markdown("""
 .detail-label { font-size: 0.9rem; opacity: 0.9; }
 .detail-value { font-size: 1.05rem; font-weight: 800; }
 
+/* ===== METRICS ===== */
+.metrics-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.2rem; margin: 2rem 0; }
+.metric-box {
+    background: white; border-radius: 18px; padding: 1.5rem;
+    text-align: center; box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    border-top: 4px solid;
+}
+.metric-box:nth-child(1) { border-top-color: #667eea; }
+.metric-box:nth-child(2) { border-top-color: #f093fb; }
+.metric-box:nth-child(3) { border-top-color: #11998e; }
+.metric-icon { font-size: 2.4rem; margin-bottom: 0.6rem; }
+.metric-label { font-size: 0.85rem; color: #999; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.4rem; }
+.metric-value { font-size: 2rem; font-weight: 900; color: #111827; }
+
 /* ===== CHART WRAPPER ===== */
 .chart-wrapper {
     background: white; border-radius: 20px; padding: 2rem;
@@ -140,42 +141,21 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-
-# ============================================================
-# ✅ HF GATE (évite download HF au démarrage)
-# ============================================================
-st.markdown("### 🔌 Connexion (HuggingFace)")
-if "hf_ready_pred" not in st.session_state:
-    st.session_state.hf_ready_pred = False
-
-cols_gate = st.columns([0.65, 0.35])
-with cols_gate[0]:
-    st.caption("Pour éviter les redémarrages (EOF), on ne télécharge pas le modèle/données tant que tu n’as pas cliqué.")
-
-with cols_gate[1]:
-    if st.button("🚀 Charger modèle + données (HF)", width="stretch"):
-        st.session_state.hf_ready_pred = True
-
-if not st.session_state.hf_ready_pred:
-    st.info("Clique sur **Charger modèle + données (HF)** pour lancer les téléchargements, puis la page continuera.")
-    st.stop()
-
-
 # ============================================================
 # LOAD HF ARTIFACTS (model + pipeline + features)
 # ============================================================
-@st.cache_resource(show_spinner=True, ttl=3600)
-def load_artifacts_hf(repo_id, repo_type, hf_token):
+@st.cache_resource(show_spinner=True)
+def load_artifacts_hf():
     return download_artifacts_from_latest(
-        repo_id=repo_id,
-        repo_type=repo_type,
-        hf_token=hf_token,          # ok même si None (repo public)
+        repo_id=HF_REPO_ID,
+        repo_type=HF_REPO_TYPE,
+        hf_token=HF_TOKEN,          # ok même si None (repo public)
         artifacts_dir="artifacts",
         cache_dir=".cache/favorita_artifacts",
     )
 
 try:
-    model, pipe, feature_cols, meta = load_artifacts_hf(HF_REPO_ID, HF_REPO_TYPE, HF_TOKEN)
+    model, pipe, feature_cols, meta = load_artifacts_hf()
     st.caption(
         f"✅ Model HF chargé | run={meta.get('run_id')} | trained_at={meta.get('trained_at', meta.get('updated_at'))}"
     )
@@ -184,13 +164,12 @@ except Exception as e:
     st.exception(e)
     st.stop()
 
-
 # ============================================================
-# LOAD DATA (HF ONLY) — juste pour listes store/item + min/max
+# LOAD DATA (HF ONLY)
 # ============================================================
-@st.cache_data(show_spinner=True, ttl=3600)
-def load_recent_data(repo_id, repo_type, hf_token, weeks: int, parquet_name: str):
-    df_ = load_train_from_hf(weeks=int(weeks), filename=parquet_name)
+@st.cache_data(show_spinner=True)
+def load_recent_data(weeks: int):
+    df_ = load_train_from_hf(weeks=int(weeks), filename=PARQUET_NAME)
     df_["date"] = pd.to_datetime(df_["date"], errors="coerce").dt.normalize()
     df_ = df_.dropna(subset=["date"])
     return df_
@@ -198,28 +177,26 @@ def load_recent_data(repo_id, repo_type, hf_token, weeks: int, parquet_name: str
 WEEKS = int(st.session_state.get("weeks_window", MAX_WEEKS))
 WEEKS = min(WEEKS, MAX_WEEKS)
 
-df = load_recent_data(HF_REPO_ID, HF_REPO_TYPE, HF_TOKEN, WEEKS, PARQUET_NAME)
+df = load_recent_data(WEEKS)
 
 store_list = np.sort(df["store_nbr"].dropna().unique()).tolist()
 item_list  = np.sort(df["item_nbr"].dropna().unique()).tolist()
 
 min_d = df["date"].min().date()
 max_d = df["date"].max().date()
-future_max_d = max_d + timedelta(days=FUTURE_DAYS_MAX)
-
 
 # ============================================================
-# HEADER (inchangé)
+# HEADER
 # ============================================================
 col_hero, col_info = st.columns([0.7, 0.3])
 
 with col_hero:
-    st.markdown(f"""
+    st.markdown("""
     <div class="prediction-hero">
         <div class="hero-content">
             <div class="hero-title">🔮 Prédictions IA</div>
             <div class="hero-subtitle">Moteur de prévision des ventes (HF artifacts)</div>
-            <div class="hero-badge">✨ Source: HuggingFace (100% HF) | Horizon: +{FUTURE_DAYS_MAX} jours</div>
+            <div class="hero-badge">✨ Source: HuggingFace (100% HF)</div>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -227,23 +204,23 @@ with col_hero:
 with col_info:
     st.markdown(f"""
     <div class="info-card">
-        <div class="info-label">Fenêtre de données (pour listes)</div>
+        <div class="info-label">Fenêtre de données</div>
         <div class="info-value">{WEEKS} semaines</div>
-        <div class="info-detail">📅 Observé: {min_d} → {max_d}</div>
-        <div class="info-detail">🚀 Max préd: {future_max_d}</div>
+        <div class="info-detail">📅 {min_d} → {max_d}</div>
         <div class="info-detail">📦 Parquet: {PARQUET_NAME}</div>
     </div>
     """, unsafe_allow_html=True)
 
-
 # ============================================================
-# SIDEBAR (inchangé)
+# SIDEBAR
 # ============================================================
 with st.sidebar:
     st.markdown("## 🎯 Configuration")
 
     with st.expander("⚡ Prédiction Instantanée", expanded=True):
-        date_in = st.date_input("📅 Date", value=max_d, min_value=min_d, max_value=future_max_d)
+        from datetime import timedelta
+        future_max = max_d + timedelta(days=60)  # ou 365
+        date_in = st.date_input("📅 Date", value=max_d, min_value=min_d, max_value=future_max)
         store_nbr = st.selectbox("🏪 Store", options=store_list, index=0)
 
         q = st.text_input("🔍 Rechercher un item", value="", placeholder="ID de l'item...")
@@ -255,36 +232,22 @@ with st.sidebar:
         item_nbr = st.selectbox("📦 Item", options=item_opts, index=0)
         onpromotion = st.checkbox("🏷️ En promotion", value=False)
 
-        st.caption("ℹ️ Astuce: si ton pipeline utilise des lags/rolling, la qualité en futur dépend de la façon dont ces features sont construites.")
-
     with st.expander("📊 Prédiction sur Période", expanded=False):
         date_range = st.date_input(
             "Période",
             value=(min_d, max_d),
             min_value=min_d,
-            max_value=future_max_d,
+            max_value=max_d,
             key="pred_date_range",
         )
-
-        store_sel = st.multiselect("Stores (obligatoire)", options=store_list, default=[])
-        item_sel  = st.multiselect("Items (obligatoire)", options=item_opts, default=[])
-
-        promo_mode = st.radio(
-            "Promotion (scénario)",
-            options=["Toujours NON", "Toujours OUI"],
-            index=0,
-            horizontal=True,
-        )
-        promo_value = (promo_mode == "Toujours OUI")
-
-        run_period = st.button("🚀 Lancer Prédiction", width="stretch")
-
+        store_sel = st.multiselect("Stores", options=store_list, default=[])
+        item_sel  = st.multiselect("Items", options=item_opts, default=[])
+        run_period = st.button("🚀 Lancer Prédiction", width='stretch')
 
 # ============================================================
 # TABS
 # ============================================================
 tab1, tab2 = st.tabs(["⚡ Instantané", "📈 Période"])
-
 
 # ============================================================
 # TAB 1 — SINGLE PRED
@@ -341,14 +304,13 @@ with tab1:
     """, unsafe_allow_html=True)
 
     with st.expander("🔍 Détails de l'observation"):
-        st.dataframe(new_df, width="stretch")
-
+        st.dataframe(new_df, width='stretch')
 
 # ============================================================
-# TAB 2 — PERIOD PRED (FUTURE READY + 1 CURVE PER ITEM)
+# TAB 2 — PERIOD PRED
 # ============================================================
 with tab2:
-    st.markdown("### 📊 Prédictions sur période (futur inclus)")
+    st.markdown("### 📊 Prédictions sur période avec filtres")
 
     if run_period:
         if isinstance(date_range, (tuple, list)) and len(date_range) == 2:
@@ -361,69 +323,51 @@ with tab2:
         if start_d > end_d:
             start_d, end_d = end_d, start_d
 
-        if not store_sel:
-            st.warning("⚠️ Choisis au moins 1 store.")
+        f = df.loc[(df["date"] >= start_d) & (df["date"] <= end_d)].copy()
+
+        if store_sel:
+            f = f.loc[f["store_nbr"].isin(store_sel)]
+        if item_sel:
+            f = f.loc[f["item_nbr"].isin(item_sel)]
+
+        if len(f) == 0:
+            st.warning("⚠️ Aucune ligne après filtres.")
             st.stop()
-        if not item_sel:
-            st.warning("⚠️ Choisis au moins 1 item (pour afficher une courbe par item).")
-            st.stop()
-
-        dates = pd.date_range(start_d, end_d, freq="D")
-
-        grid = pd.MultiIndex.from_product(
-            [dates, store_sel, item_sel],
-            names=["date", "store_nbr", "item_nbr"]
-        ).to_frame(index=False)
-
-        grid["onpromotion"] = bool(promo_value)
 
         nmax = 300_000
-        if len(grid) > nmax:
-            st.info(f"📊 Grid trop grand ({len(grid):,} lignes). Échantillonnage à {nmax:,}.")
-            grid = grid.sample(nmax, random_state=42)
+        if len(f) > nmax:
+            f = f.sample(nmax, random_state=42)
+            st.info(f"📊 Dataset échantillonné : {nmax:,} lignes")
 
         with st.spinner("⚙️ Prédiction en cours..."):
-            Xg_enriched = pipe.transform(grid)
-            Xg = (Xg_enriched
+            Xf_enriched = pipe.transform(f)
+            Xf = (Xf_enriched
                   .reindex(columns=feature_cols, fill_value=0)
                   .replace([np.inf, -np.inf], np.nan)
                   .fillna(0))
 
-            pred_log_arr = model.predict(Xg)
+            pred_log_arr = model.predict(Xf)
             pred = np.expm1(pred_log_arr)
 
-        out = grid[["date", "store_nbr", "item_nbr"]].copy()
+        out = f[["date", "store_nbr", "item_nbr"]].copy()
         out["pred_unit_sales"] = pred.astype("float32")
 
         total = float(out["pred_unit_sales"].sum())
         avg   = float(out["pred_unit_sales"].mean())
         nrows = int(len(out))
 
-        c1, c2, c3 = st.columns(3)
-        c1.metric("📦 Total prédit", f"{total:,.0f}")
-        c2.metric("📈 Moyenne / ligne", f"{avg:.2f}")
-        c3.metric("🧾 Lignes", f"{nrows:,}")
+        st.metric("📦 Total prédit", f"{total:,.0f}")
+        st.metric("📈 Moyenne / ligne", f"{avg:.2f}")
+        st.metric("🧾 Lignes", f"{nrows:,}")
 
         st.markdown('<div class="chart-wrapper">', unsafe_allow_html=True)
-        st.markdown('<div class="chart-title">📈 Évolution temporelle (1 courbe par item)</div>', unsafe_allow_html=True)
-
-        g = (out
-             .groupby(["date", "item_nbr"], as_index=False)["pred_unit_sales"]
-             .sum())
-
-        wide = (g.pivot(index="date", columns="item_nbr", values="pred_unit_sales")
-                  .sort_index())
-
-        max_lines = 12
-        if wide.shape[1] > max_lines:
-            st.info(f"🔎 Trop d'items ({wide.shape[1]}). Affichage limité aux {max_lines} premiers.")
-            wide = wide.iloc[:, :max_lines]
-
-        st.line_chart(wide, width="stretch")
+        st.markdown('<div class="chart-title">📈 Évolution temporelle (total prédit)</div>', unsafe_allow_html=True)
+        g1 = out.groupby("date", as_index=False)["pred_unit_sales"].sum()
+        st.line_chart(g1.set_index("date"))
         st.markdown('</div>', unsafe_allow_html=True)
 
         with st.expander("📄 Table de prédictions (aperçu)"):
-            st.dataframe(out.head(200), width="stretch")
+            st.dataframe(out.head(200), width='stretch')
 
         csv = out.to_csv(index=False).encode("utf-8")
         st.download_button(
@@ -431,7 +375,5 @@ with tab2:
             data=csv,
             file_name="predictions_favorita.csv",
             mime="text/csv",
-            width="stretch",
+            width='stretch',
         )
-
-        st.caption("ℹ️ Note: si ton pipeline construit des lags/rolling, la prédiction future peut être moins fiable si ces features ne sont pas calculées à partir d’un historique.")
