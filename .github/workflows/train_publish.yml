@@ -3,7 +3,7 @@ name: Train + Publish (HF)
 on:
   workflow_dispatch:
   schedule:
-    # Tous les 3 jours à 03:00 UTC (tu peux changer)
+    # Tous les 3 jours à 03:00 UTC
     - cron: "0 3 */3 * *"
 
 concurrency:
